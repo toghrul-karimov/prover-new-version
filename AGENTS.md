@@ -7,7 +7,7 @@ This repository holds version 2 of a protocol in which AI agents formalise mathe
 - **Design: complete.**
   - `docs/DESIGN.md`: the plain overview, written for the human.
   - `docs/SPEC.md`: draft 0.2; files, formats, commands and checks.
-  - `docs/DECISIONS.md`: decisions D1–D97 with their reasons, the evidence from the Baker campaign, and the glossary.
+  - `docs/DECISIONS.md`: decisions D1–D98 with their reasons, the evidence from the Baker campaign, and the glossary.
   - `docs/BUILD_PLAN.md`: the work items, in order.
   - `docs/REFORM.md`: the brief for the optional rewrite after a campaign.
 - **Code:** only `verify/lean_verify.py`, the independent `lean-verify` (SPEC section 12.3), with unit tests for its Git checks. Its Lean part has never run, because no Lean was available where it was written. That part is the assumptions report and the call to `lake comparator`.
@@ -31,7 +31,7 @@ Before changing anything in the design, read why it is the way it is in `docs/DE
 
 - **The human decides design questions.**
   - If a test contradicts the design, or the design is unclear, stop and ask the human, with a recommendation.
-  - Record each answer as the next decision in `docs/DECISIONS.md`; the next number is D98. Then update `docs/SPEC.md`, citing the decision number, and `docs/DESIGN.md`, in plain words without decision numbers.
+  - Record each answer as the next decision in `docs/DECISIONS.md`; the next number is D99. Then update `docs/SPEC.md`, citing the decision number, and `docs/DESIGN.md`, in plain words without decision numbers.
   - While a question waits, list it under "Open questions" in `docs/DECISIONS.md`.
 - **Record test results** in `docs/TEST_RESULTS.md`, including failures that reveal design problems. Never quietly work around a design problem.
 - **No complicated code** (D67). Prefer plain files, plain commands, Python 3.11 or later with the standard library where possible, and short programs. `lean-verify` must stay short enough to read.
@@ -51,6 +51,5 @@ Before changing anything in the design, read why it is the way it is in `docs/DE
 
 ## Points to settle early
 
-- **Q54** (in `docs/DECISIONS.md`): stubs and definition files may import only definition entries and dependency packages. `lean-verify` already enforces this for the files the approval covers. The rule still needs the human's decision. If accepted, it goes into SPEC section 3.2 and the Planner's prompt.
 - **Is `lake comparator` fast enough per task (D94)?** Measure it with `tests/toy-mathlib` and report to the human.
 - **Definitionally equal restatements:** does `lake comparator` accept a statement that is definitionally equal to the approved one but written differently? The `restated-defeq` variant tests this. If the comparator rejects it, the per-task check (SPEC section 7, which accepts definitional equality) must apply the same rule. Otherwise Provers would pass the check and then fail `lean-verify`. Report the result to the human.

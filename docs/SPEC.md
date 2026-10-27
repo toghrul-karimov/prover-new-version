@@ -85,6 +85,7 @@ Definition files get graph entries like tasks, so the same scheduling, re-checki
 
 - Every `depends` id exists and is a definition or a task; the graph has no cycles (D26).
 - Every module named in a file's `import` lines is either an entry listed in `depends`, a dependency package (Mathlib and its dependencies), or a proved entry (D14).
+- **Stubs and definition files import only definition entries and dependency packages** (D98), never a task's file. The Runner refuses a `submit` or `revise` that breaks this. A task file may add imports of proved entries (D14); stating a theorem needs only definitions.
 - `statements` lists at least one theorem for a task; every listed theorem exists in the stub, inside `namespace`.
 - An entry that others depend on cannot be withdrawn until they change (D53).
 - **Approval covers meaning** (D20, D69, D93). It covers each approved stub, every campaign file that stub imports, directly or indirectly, and the Lake configuration, `lean-toolchain` and `lake-manifest.json`. A `revise` that changes a covered file is held, not applied, and an `approval-needed` item goes to the human; `runner approve` applies it and moves the approval tag.
@@ -422,4 +423,4 @@ The pilot measures how long `lake comparator` takes per task; it replays every M
 
 ## 14. Review of draft 0.1
 
-All settled. Batch 1: 2.1 (D65), 3.1 (D66), 5.1 (D67). Conditional formalisations: D68–D71. Batch 2, the acceptance check: D72–D77. Batch 3, the Prover: D78–D82. Batch 4, statuses, prompts and the Fixer: D83–D89. Batch 5, re-check, sandboxes and `verify`: D90–D97.
+All settled. Batch 1: 2.1 (D65), 3.1 (D66), 5.1 (D67). Conditional formalisations: D68–D71. Batch 2, the acceptance check: D72–D77. Batch 3, the Prover: D78–D82. Batch 4, statuses, prompts and the Fixer: D83–D89. Batch 5, re-check, sandboxes and `verify`: D90–D97. Raised while writing `lean-verify`: D98 (what stubs may import).

@@ -87,6 +87,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - At the end, every raise is removed in turn and the project rebuilt; only raises that are actually needed are kept.
   - **Guidance for the Planner:** one main idea per expected proof; separate named theorems rather than long conjunctions; basic lemmas for each definition; one number system per statement where the mathematics allows; large numerical facts in their own tasks.
   - **Guidance for the Prover:** if a declaration runs out of heartbeats, split it before raising the limit; prefer `simp only [...]` and `linarith only [...]`.
+- **Statements depend only on the Planner's files.** A task's statement, and every definition file, imports only definition files and packages such as Mathlib, never a Prover's file. Stating a theorem needs only definitions; the Prover adds the imports its proof needs to its own task file. So no statement's meaning can depend on a Prover's work, and your approval never covers a Prover's file.
 - **Helper lemmas** are public by default, in the task's namespace.
 - **Not allowed in task files:** global instances, `@[simp]`, notation and attribute changes; use `local` or `scoped`. The Planner's definition files may have them.
 - **Not allowed in any file:**
@@ -261,6 +262,7 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
   - propose the whole configuration in one message;
   - write a target sheet for each top-level statement;
   - write the definitions, plus very simple, often-needed proofs about them that are too small to be tasks; keep the definitions used by top-level statements in small files of their own, so unrelated edits don't need your new approval;
+  - stubs and definition files import only definition files and packages such as Mathlib, never a task's file;
   - state each assumption as a named definition, as close to its source as possible and in the weakest form needed; never as an axiom;
   - write no difficult tasks: split rather than prove central arguments itself; learn from the Runner's report on each task;
   - statements: one main idea per expected proof, separate named theorems rather than long conjunctions, one number system per statement where possible, large numerical facts in their own tasks;

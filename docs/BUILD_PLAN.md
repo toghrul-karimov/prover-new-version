@@ -37,7 +37,7 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
 
 ## Status (2026-10-27)
 
-- **Item 1, specification:** draft 0.2, nothing open except Q54.
+- **Item 1, specification:** draft 0.2, nothing open.
 - **Item 2, `lean-verify`:** written (`verify/lean_verify.py`); its Git checks have unit tests. Its Lean part has not run yet (`docs/TEST_PLAN.md`, phase 2).
 - **Test kit:** `scripts/setup-host.sh`, `tests/sandbox/probe.sh`, `tests/make-campaign.sh`, `tests/toy/` (13 variants), `tests/toy-mathlib/`.
 - Everything else: not started.

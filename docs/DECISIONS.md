@@ -103,6 +103,7 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 | D95 | **No containers: bubblewrap sandboxes.** Every attempt and check runs in a bubblewrap sandbox (host system folders read-only; home folders, `/run`, `/var` and other campaigns hidden; only the workspace writable; shared build cache through an overlay; own process namespace) inside a `systemd-run --user --scope` with `MemoryMax` and no swap. No container engine or image: Lean through elan, Mathlib from the manifest, agent tools installed once at fixed versions; receipts record agent tool versions instead of an image digest. Agent tools run with their own prompts and sandboxing off. Reason: bubblewrap is already required by `lake comparator`, gives the same isolation on Linux, and avoids a second mechanism. Supersedes the container parts of D17, D18, D43 and D64; amends D77. | 2026-10-27 |
 | D96 | **Network:** every sandbox has an empty network namespace. Agent sandboxes reach a filtering proxy on the host (tinyproxy, deny by default, `provider_hosts` only) through a Unix socket exposed on the sandbox's loopback by `socat`. Web search run at the provider's end can't be blocked by the proxy, so the adapter switches it off and `setup-check` confirms it. Refines D54 and D64. | 2026-10-27 |
 | D97 | **`setup-check` additions:** bubblewrap, systemd scopes and the memory cap; one bad file per acceptance rule (including the D72–D75 rules); `lake comparator` on a good and a bad example; web search off for agent tools. | 2026-10-27 |
+| D98 | **Stubs and definition files import only definition entries and dependency packages,** never a task's file. Stating a theorem needs only definitions; a task file may still add imports of proved entries (D14). Reason: `lake comparator` trusts the challenge and everything it imports, and an import can change how a statement is read; so no statement may depend on a Prover's file, and an approval (D69) never covers one. The Runner refuses a `submit` or `revise` that breaks the rule; `lean-verify` checks it for the files the approval covers. | 2026-10-27 |
 
 ## Consequences to resolve
 
@@ -130,7 +131,7 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 
 ## Open questions
 
-- **Q54. What stubs and definition files may import.** `lake comparator` trusts the challenge, and everything it imports must be trustworthy. So `lean-verify` requires that approved stubs, and the definition files they import, import only definition entries and dependency packages such as Mathlib, never a Prover's task file. This also makes clear what an approval covers (D69). Proposed: the same rule for every stub and definition file, in SPEC section 3.2 and the Planner's prompt; a task file may still add imports of proved entries (D14). Raised 2026-10-27 while writing `lean-verify`; `lean-verify` already enforces it for the files the approval covers.
+None. All design questions are decided; the open consequences are implementation notes.
 
 ## What the role prompts must say
 
@@ -148,6 +149,7 @@ Collected from the decisions, so nothing is lost when the prompts are written.
   - never change the Runner (D45);
   - state each assumption as a named definition citing its source, as close to the source as possible and in the weakest form needed; never as an axiom (D68, D71);
   - keep the definitions used by top-level statements in small files of their own, so unrelated edits need no new approval (D69);
+  - stubs and definition files import only definition files and packages such as Mathlib, never a task's file; the Prover adds the imports its proof needs (D98);
   - keep numerical probes and examples (`#eval`) outside the campaign's files; ask the human if a file needs an exemption from the code-running ban, for example for a custom tactic (D72).
 - **Prover:**
   - search on demand; try `exact?` before writing a helper (D16);
@@ -221,6 +223,7 @@ Collected from the decisions, so nothing is lost when the prompts are written.
 - **Q51 What approval covers.** Decided as D69 (the approved stubs and every campaign file they import).
 - **Q52 Visible assumptions.** Decided as D70.
 - **Q53 Guidance on assumptions.** Decided as D71, without the proposed attempt to disprove each assumption.
+- **Q54 What stubs and definition files may import.** Decided as D98.
 
 ## Evidence
 
