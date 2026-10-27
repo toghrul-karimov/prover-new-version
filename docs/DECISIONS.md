@@ -67,6 +67,8 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 | D59 | **If the optional rewrite runs through the Runner, Provers carry out the rewrite tasks**, with a rewrite prompt, checked like any task. The protocol therefore ships a Prover rewrite prompt. | 2026-10-27 |
 | D60 | **The Runner is written in Python**, like Baker's runner (whose acceptance check and Prover loop are reused). | 2026-10-27 |
 | D61 | **The Prover loop supports both chat completions and Anthropic's own API**, through a small translation layer, so Claude models can be Provers and prompt caching can cut the cost of resending the conversation. The loop stays append-only (never edits earlier turns), as Baker's already is. | 2026-10-27 |
+| D62 | **The Fixer can be an agent tool (Claude Code or Codex), started by the Runner through an adapter** and using a subscription login on the host (D55 stands). The human has subscriptions, not API access. | 2026-10-27 |
+| D63 | **Each role's implementation is agreed with the human per campaign.** The Prover and the Fixer can each run either in the Runner's own loop through a model API, or as an agent tool (Claude Code or Codex) through an adapter. The choice, and the model, are part of the one-step configuration (D25). Adapters serve both roles; the Planner needs none (the human starts it). Amends D25, D30 and D61 (the model-API loop is one of two options). | 2026-10-27 |
 
 ## Consequences to resolve
 
@@ -88,16 +90,13 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 - **C13 (from D17, D43).** One Lean server per attempt, inside the attempt's container, never shared, as in v1 (`runner.py:905–911`; Stage 91 started 8 servers for 8 tasks). A shared server would need to see every workspace, which breaks the isolation of D17, and one crash or memory blow-up would hit every attempt. Memory cost is modest: Mathlib's compiled files are memory-mapped, so the servers share those pages; each holds only its own elaboration state.
 - **C14 (from D17).** Attempts see the compiled files of proved nodes read-only, from one controller-owned build cache that grows as nodes are accepted, plus a private writable layer for their own outputs. v1 instead copied the whole build directory into every attempt (`runner.py:353`), which is how Stage 8 ran out of disk.
 - **C15 (from D58).** The Planner's own Lean checks and worker agents use the host outside the Runner's ceiling, so N and the memory cap must leave headroom for them, and their model costs count against any spending cap agreed in the configuration (D25). Worker results are not accepted proofs.
+- **C16 (from D63).** An agent-tool Prover must get the same things as a model-API Prover: the packet becomes its prompt plus files in its workspace and a rules file; its Lean tools come from a Lean server in its container; its searches go through a Runner-provided search tool, with the agent tool's own web tools turned off (D54); asking for the check ends its turn, the Runner checks, and on failure resumes the same session with the diagnostics and the remaining time (D43); the Runner stops it at the time limit; the adapter captures its transcript for records and for the Fixer (D44).
+- **C17 (from D62, D63).** With subscription logins, the plan's usage limits cap how many attempts can usefully run at once. Choose N with them in mind. Hitting a limit is a provider-wide event (D36): no new attempts start until it resets, and nothing is lost.
 - **C10 (from D31).** With no example project, the setup check on a new host needs its own small command: build one tiny Lean file in the container image, run the acceptance check on a known-good and a known-bad file, confirm the memory cap applies, make one model request per configured role, and run `verify` on the result.
 
 ## Open questions
 
-### Current batch
-- **Q48 How the Fixer runs** (reworded 2026-10-27 after the user asked which Fixer tools justify an adapter). The Fixer needs no tool the Runner's own loop could not provide: reading and editing files, Lean checks, Lean server queries, lemma search, plus two new ones (propose a split, escalate). Options:
-  - a) *The Fixer runs in the Runner's own loop, like the Prover*, with its own model, prompt and time limit and the two extra tools. No adapters at all; the Fixer runs fully inside its container; it is billed through the model API. Supersedes the host-side arrangement of D55.
-  - b) *The Fixer is an agent tool (Claude Code or Codex) started through adapters.* Lets the Fixer use a subscription login instead of per-token API billing (Baker's Repairer ran on a ChatGPT login), and those tools' own harness. Costs: one adapter per tool, and the host-side sandbox setup of D55.
-
-  Either way there is no Planner adapter: the human starts the Planner, which needs only its instruction file (`CLAUDE.md` or `AGENTS.md`) and a start prompt.
+None. All design questions are decided; the open consequences are implementation notes.
 
 ## What the role prompts must say
 
@@ -132,6 +131,7 @@ Collected from the decisions, so nothing is lost when the prompts are written.
 - **Q2 Completion files.** Closed by D5: no conditional assemblers or completion files. The top theorem is an ordinary node whose dependencies are the lemmas it uses.
 - **Q3 Repair flow.** Decided as D7 (split depth one). Rejected: split depth two; no splitting; v1's return to the Prover.
 - **Q4 Reformer scope.** Decided as D8. Rejected: proofs and layout only; everything including definitions.
+- **Q48 How the Fixer runs.** Decided as D62 (agent tool through adapters, subscription login) and widened by D63: each role's implementation is agreed per campaign. Rejected as the only option: the Runner's own loop.
 - **Q47 Prover model API.** Decided as D61 (both).
 - **Q46 Who carries out the rewrite tasks.** Decided as D59: Provers with a rewrite prompt, if the optional rewrite runs through the Runner.
 - **Q45 The Planner's Lean probes.** Decided as D58: the Planner is trusted and works directly, outside the Runner. Rejected: probes through the Runner, counted against the ceiling.

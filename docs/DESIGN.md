@@ -16,8 +16,8 @@ Agreed 2026-10-27. This file describes the design as decided. The full history, 
 | **You (the human)** | | Confirm the campaign configuration. Approve each top-level statement. Fix infrastructure problems the Runner cannot solve, alone or with the Planner's help. Pause, change and resume the campaign whenever you want. Decide escalated top-level statements. Decide whether, and by whom, the project is rewritten after the campaign. |
 | **Planner** | One long-lived agent session, on any machine that can reach the Linux host, with full access to that host | Sets up the campaign. Writes the definitions and task statements, maintains the dependency graph, sizes tasks, and handles Fixer outcomes and escalations. Keeps the lessons file. Trusted by you: works directly on the host, runs its own Lean checks and may start worker agents, for example to gauge how hard a task is, without going through the Runner. May assist you at any time, including with infrastructure, but never changes the Runner's program. |
 | **Runner** | A deterministic program, no model | Schedules tasks, runs containers and checks, writes receipts, keeps the lemma index and the inbox, handles routine infrastructure faults, re-checks after changes, writes summaries. |
-| **Prover** | A model driven by the Runner through a model API | Makes one attempt per task. |
-| **Fixer** | An agent tool run non-interactively on the host, started by the Runner (called the Repairer in Baker) | Called after one failed Prover attempt; finishes the proof, splits the task, or escalates. |
+| **Prover** | Either a model driven by the Runner through a model API, or an agent tool (Claude Code or Codex) started by the Runner, as agreed in the configuration | Makes one attempt per task. |
+| **Fixer** | Either an agent tool (Claude Code or Codex) started by the Runner, or a model driven by the Runner through a model API, as agreed in the configuration (called the Repairer in Baker) | Called after one failed Prover attempt; finishes the proof, splits the task, or escalates. |
 
 Provers and Fixers never message anyone. Only one Planner session runs at a time.
 
@@ -46,7 +46,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 1. **Prover attempt.** Once the task can be attempted, the Runner starts a Prover in its own container.
    - The Prover's packet contains the statements to prove, the Planner's short list of relevant lemmas (names and statements, no proofs) and a one-line-per-file table of contents.
    - Everything else the Prover finds on demand: search over the project's lemma index, `exact?`, Loogle, reading files. It tries `exact?` before writing a helper.
-   - The Prover's rules are sent with every request, so they can't be forgotten.
+   - The Prover's rules are sent with every request, so they can't be forgotten. An agent-tool Prover gets the same packet, tools and rules, through its prompt, its workspace and a rules file.
 2. **Check.** When the Prover asks for its check, its container is stopped completely, Lean server included. The check runs in a separate container, on the project's accepted sources plus the submitted file.
    - **Pass:** the task is proved and a receipt is committed.
    - **Fail:** a fresh container on the same workspace lets the Prover carry on, with the check's diagnostics and its remaining time. Time spent checking counts against the time limit.
@@ -113,19 +113,21 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - Mathlib is shared read-only between containers.
   - Compiled files of proved tasks come read-only from one shared cache kept by the Runner, which grows as tasks are accepted. Each container adds a private layer for its own outputs.
 - **Network:** containers have no network access. The Runner carries out the Prover's Loogle and LeanSearch calls itself, outside the container; this costs no extra tokens.
-- **The Fixer and logins:** the Fixer's agent tool runs on the host, started by the Runner and logged in there, so no credentials ever enter a container. The tool's own sandbox limits it to its workspace, and its Lean work runs in its container. The host has internet access, for model calls and searches.
+- **Agent tools and logins:** a Prover or Fixer that is an agent tool runs on the host, started by the Runner and logged in there with your subscription, so no credentials ever enter a container. The tool's own sandbox limits it to its workspace, its Lean work runs in its container, and its own web tools are turned off; searches go through the Runner. The host has internet access, for model calls and searches.
 - **Lean servers:** one per attempt, never shared.
 - **Resources.** The numbers are set from a measurement at setup.
   - At most N attempts run at once.
   - Each container has a memory cap, with swap off.
   - An attempt and its check never run at the same time, so a slot holds one container at a time.
   - Running out of memory is reported to the Prover like any other tool error, and never stops the campaign.
+  - With subscription logins, the plan's usage limits also cap how many attempts can usefully run at once. Hitting a limit stops new attempts until it resets; nothing is lost.
   - The Planner's own Lean checks and worker agents run outside this limit, so N and the memory cap should leave room for them.
 - **Versions:** Lean and Mathlib normally stay the same throughout. They can be changed at a pause, at the cost of a full rebuild and re-check (section 12).
 
 ## 9. Configuration and setup
 
 - **One-step configuration.** At the start, the Planner proposes the whole configuration in one message:
+  - how the Prover and the Fixer are implemented: through a model API, or as an agent tool (Claude Code or Codex) with your subscription;
   - the model and reasoning setting for Planner, Prover and Fixer;
   - the attempt time limits;
   - N and the memory cap;
@@ -207,7 +209,9 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
 ## 15. Implementation
 
 - **The Runner is written new**, reusing two proven parts of Baker's runner: the acceptance check, and the loop that drives the Prover (model calls, Lean tools, file editing).
-- **Planner and Fixer** can run on any agent tool with a non-interactive mode, through a small adapter. Two tools are tested, for example Claude Code and Codex; their exact options are checked at setup.
+- **Adapters** for Claude Code and Codex let the Runner start a Prover or a Fixer as an agent tool: the command line and model, the sandbox limiting it to its workspace, routing its Lean work into the container, resuming a session, reading its result. Their exact options are checked at setup.
+- **The model-API loop** supports both chat completions (DeepSeek, OpenRouter, local servers) and Anthropic's own API.
+- **The Planner** needs no adapter: you start it yourself, in any agent tool, with its instruction file and a start prompt.
 - **Tests:** unit tests with tiny Lean files, including scripted end-to-end tests that replay recorded model responses: adopting a split, re-checking after a split, resuming after an interruption, adding tasks while running.
 - **No example project** is shipped.
 - **Still to build:**

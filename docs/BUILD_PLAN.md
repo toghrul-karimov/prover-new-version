@@ -17,7 +17,7 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
 5. **Runner:**
    - scheduling over the dependency graph, and the live depth;
    - containers and memory caps;
-   - the Prover loop (reused from Baker);
+   - the model-API loop for Provers and Fixers (reused from Baker), supporting chat completions and Anthropic's API;
    - Fixer runs and split adoption with its four guards;
    - receipts in Git, and the lemma index with its search tool;
    - inbox, events and notifications;
@@ -25,7 +25,7 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - the automatic re-check after changes;
    - `status` and `setup-check`;
    - the end-of-campaign heartbeat pass.
-6. **Adapters** for Planner and Fixer, for two agent tools: command line and non-interactive flags, session resume, instruction-file placement, reading the result.
+6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools: command line and model, sandbox, routing Lean work into the container, session resume, rules-file placement, reading the result. The Planner needs no adapter.
 7. **Prompts and templates**, from the checklist in `DESIGN.md` section 16.
    - Prompts: the Planner's instruction file and start prompt; the Prover prompt, plus a Prover rewrite prompt for the optional rewrite after a campaign (brief in `REFORM.md`); the Fixer prompt.
    - Templates: target sheet, configuration proposal, lessons-file entry.
