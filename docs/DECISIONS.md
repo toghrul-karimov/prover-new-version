@@ -100,7 +100,12 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 
 ## Open questions
 
-None. All design questions are decided; the open consequences are implementation notes.
+Raised 2026-10-27 by the question whether the design supports conditional formalisations (a result the human wants proved under an assumption).
+
+- **Q50. Assumptions are hypotheses, never axioms.** Each assumption is a named `def … : Prop` in a definition file, with a docstring citing its source; top-level statements take it as an explicit hypothesis; the allowed axioms stay the three. Proposed: yes.
+- **Q51. Approval covers what the statements mean.** Today a definition used by an approved statement can change without new approval, which silently changes the statement's meaning. Proposed: an approval also covers every campaign file the approved stubs import, directly or indirectly; changing one needs new approval; `verify` checks those files are unchanged since the approval tag (a Git comparison).
+- **Q52. Assumptions are visible.** Proposed: a definition entry may carry `assumption = true`; target sheets list assumptions; `verify` prints, for each top-level theorem, the assumptions it depends on.
+- **Q53. Guidance.** Proposed: the Planner states each assumption as close to its source as possible, in the weakest form needed, and before approval tries briefly to refute it, since a false assumption makes the result vacuous. The Prover treats hypotheses as given.
 
 ## What the role prompts must say
 
