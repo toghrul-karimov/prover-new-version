@@ -66,6 +66,7 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 | D58 | **The Planner is trusted and never has to go through the Runner.** It may run its own Lean checks directly and start worker agents, for example to calibrate task difficulty. Acceptance is unchanged: only the Runner's check makes a proof count, whoever wrote it. Refines D11 (calibration may also use trial runs) and D18 (the Planner's own work runs outside the attempt ceiling). | 2026-10-27 |
 | D59 | **If the optional rewrite runs through the Runner, Provers carry out the rewrite tasks**, with a rewrite prompt, checked like any task. The protocol therefore ships a Prover rewrite prompt. | 2026-10-27 |
 | D60 | **The Runner is written in Python**, like Baker's runner (whose acceptance check and Prover loop are reused). | 2026-10-27 |
+| D61 | **The Prover loop supports both chat completions and Anthropic's own API**, through a small translation layer, so Claude models can be Provers and prompt caching can cut the cost of resending the conversation. The loop stays append-only (never edits earlier turns), as Baker's already is. | 2026-10-27 |
 
 ## Consequences to resolve
 
@@ -92,8 +93,11 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 ## Open questions
 
 ### Current batch
-- **Q47 Prover model API.** a) Both chat completions (as in Baker: DeepSeek, OpenRouter, local servers) and Anthropic's own API, through a small translation layer in the Prover loop *(recommended: Claude models become possible Provers; prompt caching cuts the cost of resending the conversation each request; the loop must stay append-only, as Baker's already is)*; b) chat completions only (Claude reachable only through its chat-completions-style endpoint, with fewer features).
-- **Q48 Adapters.** Proposal: Fixer adapters for Claude Code and Codex only. No Planner adapter, because the human starts the Planner and the Runner never launches it; the Planner needs only its instruction file in the place its tool reads (`CLAUDE.md` or `AGENTS.md`) and a start prompt. Refines D30.
+- **Q48 How the Fixer runs** (reworded 2026-10-27 after the user asked which Fixer tools justify an adapter). The Fixer needs no tool the Runner's own loop could not provide: reading and editing files, Lean checks, Lean server queries, lemma search, plus two new ones (propose a split, escalate). Options:
+  - a) *The Fixer runs in the Runner's own loop, like the Prover*, with its own model, prompt and time limit and the two extra tools. No adapters at all; the Fixer runs fully inside its container; it is billed through the model API. Supersedes the host-side arrangement of D55.
+  - b) *The Fixer is an agent tool (Claude Code or Codex) started through adapters.* Lets the Fixer use a subscription login instead of per-token API billing (Baker's Repairer ran on a ChatGPT login), and those tools' own harness. Costs: one adapter per tool, and the host-side sandbox setup of D55.
+
+  Either way there is no Planner adapter: the human starts the Planner, which needs only its instruction file (`CLAUDE.md` or `AGENTS.md`) and a start prompt.
 
 ## What the role prompts must say
 
@@ -128,6 +132,7 @@ Collected from the decisions, so nothing is lost when the prompts are written.
 - **Q2 Completion files.** Closed by D5: no conditional assemblers or completion files. The top theorem is an ordinary node whose dependencies are the lemmas it uses.
 - **Q3 Repair flow.** Decided as D7 (split depth one). Rejected: split depth two; no splitting; v1's return to the Prover.
 - **Q4 Reformer scope.** Decided as D8. Rejected: proofs and layout only; everything including definitions.
+- **Q47 Prover model API.** Decided as D61 (both).
 - **Q46 Who carries out the rewrite tasks.** Decided as D59: Provers with a rewrite prompt, if the optional rewrite runs through the Runner.
 - **Q45 The Planner's Lean probes.** Decided as D58: the Planner is trusted and works directly, outside the Runner. Rejected: probes through the Runner, counted against the ceiling.
 - **Q43 Network inside attempt containers.** Decided as D54 (offline; the Runner carries out the search calls).
