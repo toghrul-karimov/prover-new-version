@@ -44,10 +44,11 @@ Work as the user `lean`, logged in over SSH.
      - the generated Lean report script (`REPORT`);
      - adding the `LeanVerify` library to `lakefile.toml`;
      - the call to `lake comparator`.
-3. **Mathlib timing** (D94):
+3. **Mathlib timing** (D94). Each copy of Mathlib takes about 7 GB, so keep it on disk: on some hosts `/tmp` is in memory (Ubuntu 26.04).
    ```
-   bash tests/make-campaign.sh tests/toy-mathlib /tmp/toym
-   time python3 verify/lean_verify.py /tmp/toym HEAD
+   export TMPDIR=~/tmp; mkdir -p $TMPDIR
+   bash tests/make-campaign.sh tests/toy-mathlib ~/toym
+   time python3 verify/lean_verify.py ~/toym HEAD
    ```
    - Record the time taken by `lake exe cache get`, by the build of the stubs, and by `lake comparator`, with and without `--paranoid`.
    - Tell the human whether the comparator is fast enough to run for every task. For comparison, `check_time_limit` is 600 seconds.

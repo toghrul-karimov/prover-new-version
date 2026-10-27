@@ -131,7 +131,15 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 
 ## Open questions
 
-None. All design questions are decided; the open consequences are implementation notes.
+- **Q55 How the Runner starts its filtering proxy (D96).** On Ubuntu 26.04, tinyproxy's AppArmor profile lets it read only `/etc/tinyproxy/tinyproxy.conf`. A Runner running as the campaign user cannot start tinyproxy with its own configuration and filter file (`docs/TEST_RESULTS.md`, 2026-10-28). Options:
+  - (a) `setup-host.sh` adds a local AppArmor rule (`/etc/apparmor.d/local/tinyproxy`) that lets tinyproxy read its configuration and filter only from one folder of the campaign user. D96 stays as it is; the setup script then changes one security setting, narrowly.
+  - (b) One system-wide tinyproxy, configured by root at setup. The allowed hosts become per host, not per campaign, and only root can change them.
+  - (c) Replace tinyproxy with a short filtering proxy in Python in this repository. No AppArmor profile applies, but the filter becomes our own code.
+  - Recommendation: (a). It keeps a tested proxy and the design; the rule grants read access to one folder only. Hosts without the profile (Debian 12) need nothing.
+- **Q56 Statement comparison: definitional equality or the same statement (section 7, D94).** `lake comparator` rejects a top-level theorem whose statement is definitionally equal to the approved one but written differently ("Challenge and solution theorem statement do not match"; the `restated-defeq` variant). The per-task check of section 7 accepts definitional equality, so a Prover could pass the check and then fail `lean-verify`. Options:
+  - (a) The per-task check requires the same elaborated statement as the stub, for every task, as the comparator does.
+  - (b) The same statement for top-level entries only; definitional equality stays for the others, which `lean-verify` never compares.
+  - Recommendation: (a). One rule, the same as the final judge. Provers have no reason to restate a stub. The comparison is of elaborated statements, so spacing, notation and the names of bound variables do not matter (a renamed hypothesis verifies).
 
 ## What the role prompts must say
 

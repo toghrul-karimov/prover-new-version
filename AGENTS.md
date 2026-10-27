@@ -2,22 +2,23 @@
 
 This repository holds version 2 of a protocol in which AI agents formalise mathematics in Lean: a Planner writes tasks, a deterministic Runner schedules and checks them, Provers prove them, and a Fixer repairs failed tasks. The human, the repository's owner, makes the design decisions.
 
-## State on 2026-10-27
+## State on 2026-10-28
 
-- **Design: complete.**
+- **Design: complete,** except two open questions from testing, Q55 (the proxy under AppArmor) and Q56 (comparing statements), in `docs/DECISIONS.md`.
   - `docs/DESIGN.md`: the plain overview, written for the human.
   - `docs/SPEC.md`: draft 0.2; files, formats, commands and checks.
   - `docs/DECISIONS.md`: decisions D1–D98 with their reasons, the evidence from the Baker campaign, and the glossary.
   - `docs/BUILD_PLAN.md`: the work items, in order.
   - `docs/REFORM.md`: the brief for the optional rewrite after a campaign.
-- **Code:** only `verify/lean_verify.py`, the independent `lean-verify` (SPEC section 12.3), with unit tests for its Git checks. Its Lean part has never run, because no Lean was available where it was written. That part is the assumptions report and the call to `lake comparator`.
+- **Code:** only `verify/lean_verify.py`, the independent `lean-verify` (SPEC section 12.3), with unit tests for its Git checks. Its Lean part ran on the test host on 2026-10-28: all toy variants and the Mathlib campaign give the expected verdicts.
 - **Test kit:**
   - `scripts/setup-host.sh` prepares the host;
   - `tests/sandbox/probe.sh` probes the sandbox design;
   - `tests/make-campaign.sh` builds a campaign repository;
   - `tests/toy/` is a tiny campaign with 13 variants, some deliberately broken;
   - `tests/toy-mathlib/` measures timing with Mathlib.
-- **Next:** `docs/TEST_PLAN.md`, phases 0–2, then the build items of `docs/BUILD_PLAN.md`.
+- **Tested** (`docs/TEST_RESULTS.md`): phases 0–2, except Loogle (phase 1, step 3) and the agent tools (phase 1, step 4), which wait for the human. The agent-sandbox part of `probe.sh` waits for Q55.
+- **Next:** the human's answers to Q55 and Q56, the two remaining phase 1 steps, then the build items of `docs/BUILD_PLAN.md`.
 
 ## Read first
 
@@ -51,5 +52,5 @@ Before changing anything in the design, read why it is the way it is in `docs/DE
 
 ## Points to settle early
 
-- **Is `lake comparator` fast enough per task (D94)?** Measure it with `tests/toy-mathlib` and report to the human.
-- **Definitionally equal restatements:** does `lake comparator` accept a statement that is definitionally equal to the approved one but written differently? The `restated-defeq` variant tests this. If the comparator rejects it, the per-task check (SPEC section 7, which accepts definitional equality) must apply the same rule. Otherwise Provers would pass the check and then fail `lean-verify`. Report the result to the human.
+- **Is `lake comparator` fast enough per task (D94)?** Measure it with `tests/toy-mathlib` and report to the human. *Measured 2026-10-28: 26 s, or 45 s with `--paranoid`, for 12,696 declarations; measure a real task in the pilot.*
+- **Definitionally equal restatements:** does `lake comparator` accept a statement that is definitionally equal to the approved one but written differently? The `restated-defeq` variant tests this. If the comparator rejects it, the per-task check (SPEC section 7, which accepts definitional equality) must apply the same rule. Otherwise Provers would pass the check and then fail `lean-verify`. Report the result to the human. *Answered 2026-10-28: it rejects it; open question Q56.*
