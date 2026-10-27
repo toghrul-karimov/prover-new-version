@@ -15,14 +15,17 @@ pids=()
 cleanup() { kill "${pids[@]}" 2>/dev/null; rm -rf "$root" "$HOME/.probe-secret"; }
 trap cleanup EXIT
 
-# The sandbox of SPEC.md 12.1: host system read-only; home, /root, /run, /var and /tmp hidden;
-# the workspace writable; the build cache read-only with a private layer; no network.
+# The sandbox of SPEC.md 12.1: only the system folders /usr and /etc, read-only (home folders,
+# /run, /var and the rest are not there); the workspace writable; the build cache read-only with
+# a private layer; no network. The root is bwrap's own empty folder, not the host's, so that bwrap
+# can create /work and the other mount points (with `--ro-bind / /` it cannot). Needs merged /usr.
 sandbox() {
   local unit=$1; shift
   systemd-run --user --scope --quiet --unit="$unit" -p MemoryMax="$mem" -p MemorySwapMax=0 \
     bwrap --die-with-parent --unshare-all --new-session \
-      --ro-bind / / --tmpfs /home --tmpfs /root --tmpfs /run --tmpfs /var --tmpfs /tmp \
-      --proc /proc --dev /dev \
+      --ro-bind /usr /usr --ro-bind /etc /etc \
+      --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
+      --tmpfs /tmp --proc /proc --dev /dev \
       --ro-bind "$HOME/.elan" "$HOME/.elan" \
       --bind "$ws" /work --overlay-src "$cache" --tmp-overlay /cache \
       "${extra[@]}" \
@@ -31,10 +34,18 @@ sandbox() {
 }
 extra=()
 n=0
+# Inside the sandbox a failing command exits 3, so that a sandbox that did not start
+# is never taken for a command the sandbox blocked. A signal (128 or more) also counts as
+# failing: when the memory cap is hit, systemd stops the whole scope.
 expect() {  # expect ok|fail DESCRIPTION COMMAND...
   local want=$1 what=$2; shift 2
   n=$((n + 1))
-  if sandbox "probe-$$-$n" "$@" >/dev/null 2>&1; then got=ok; else got=fail; fi
+  sandbox "probe-$$-$n" sh -c '"$@" || exit 3' sh "$@" >/dev/null 2>&1
+  local code=$?
+  if [ $code = 0 ]; then got=ok
+  elif [ $code = 3 ] || [ $code -ge 128 ]; then got=fail
+  else echo "FAIL  $what (the sandbox did not start)"; return
+  fi
   if [ "$got" = "$want" ]; then echo "ok    $what"; else echo "FAIL  $what (command ${got}ed)"; fi
 }
 
@@ -71,6 +82,10 @@ printf '^example\\.com$\n' > "$root/allowed"
 tinyproxy -d -c "$root/tinyproxy.conf" >"$root/tinyproxy.log" 2>&1 & pids+=($!)
 socat "UNIX-LISTEN:$root/proxy.sock,fork" TCP:127.0.0.1:8888 & pids+=($!)
 sleep 2
+if ! kill -0 "${pids[0]}" 2>/dev/null; then
+  echo "FAIL  the filtering proxy starts: $(tail -1 "$root/tinyproxy.log"); the agent sandbox checks did not run"
+  exit 1
+fi
 extra=(--bind "$root/proxy.sock" /proxy.sock)
 bridge='socat TCP-LISTEN:3128,bind=127.0.0.1,fork,reuseaddr UNIX-CONNECT:/proxy.sock & sleep 1;'
 expect ok   "an agent sandbox reaches the allowed host through the proxy" \
