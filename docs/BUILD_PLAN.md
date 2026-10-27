@@ -10,13 +10,13 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - Command-line interface.
    - The Prover's tool list.
    - What the Fixer receives and returns, including the exact split hand-off format.
-   - Container contract: what is mounted where.
-2. **`verify`**: a small separate program, independent of the Runner and short enough to read.
+   - Sandbox contract: what each sandbox sees.
+2. **`verify`**: a small separate program, independent of the Runner and short enough to read; a thin wrapper around `lake comparator` (Lean v4.35.0 or later).
 3. **Acceptance checker**: Baker's audit plus the new rules, with a positive and a negative test per rule.
-4. **Container image**: pinned Lean, the Mathlib build, the Lean server tools, Loogle, the list of Mathlib names, and the Claude Code and Codex programs for agent-tool roles. Built per campaign from the pins; rebuilt when they change.
+4. **Campaign setup** (no image): pinned Lean through elan, Mathlib fetched once, the Lean server tools, Loogle, the list of Mathlib names, and Claude Code and Codex at fixed versions for agent-tool roles. Redone when the pins change.
 5. **Runner:**
    - scheduling over the dependency graph, and the live depth;
-   - containers and memory caps;
+   - sandboxes (bubblewrap) and memory caps (systemd scopes);
    - the model-API loop for Provers and Fixers (reused from Baker), supporting chat completions and Anthropic's API;
    - Fixer runs and split adoption with its four guards;
    - receipts in Git, and the lemma index with its search tool;
@@ -26,19 +26,19 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - the automatic re-check after changes;
    - `status` and `setup-check`;
    - the end-of-campaign heartbeat pass.
-6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools inside their containers: command line and model, the campaign's own login folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) and `runner login`, session resume, installing the prompt as the tool's instruction file, usage-limit detection and reset time, reading the result. Plus the **filtering proxy** that lets those containers reach only their provider. The Planner needs no adapter.
+6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools inside their sandboxes: command line and model, the campaign's own login folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) and `runner login`, session resume, installing the prompt as the tool's instruction file, usage-limit detection and reset time, reading the result. Plus the **filtering proxy** (tinyproxy, with its socket bridge) that lets those sandboxes reach only their provider. The Planner needs no adapter.
 7. **Prompts and templates**, from the checklist in `DESIGN.md` section 16.
    - Prompts: the Planner's instruction file and start prompt; the Prover prompt, plus a Prover rewrite prompt for the optional rewrite after a campaign (brief in `REFORM.md`); the Fixer prompt.
    - Templates: target sheet, configuration proposal, lessons-file entry.
 8. **Initial lessons file**: Baker's lessons condensed for v2, each marked either "now an automatic check" or "still guidance".
 9. **Tests**: unit tests, a fake model server, tiny Lean files, and scripted end-to-end runs of splits, resume after a crash, and changes mid-campaign.
 10. **User guide**: setup, `setup-check`, configuration, approvals, pause and resume, end of campaign.
-11. **Pilot campaign** on a small real theorem: the only end-to-end test with real models. Nothing is shipped from it.
+11. **Pilot campaign** on a small real theorem: the only end-to-end test with real models. Nothing is shipped from it. It also measures how long `lake comparator` takes per task (D94).
 
 ## Order
 
 1. Specification.
-2. In parallel: `verify` and the checker; the container image; prompts and templates; the lessons file.
+2. In parallel: `verify` and the checker; campaign setup; prompts and templates; the lessons file.
 3. The Runner core with its scripted tests.
 4. Adapters, `setup-check` and the user guide.
 5. Pilot campaign.
@@ -47,4 +47,4 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
 
 None.
 
-Settled since the first draft: containers have no network, and the Runner carries out the search calls; the Fixer runs on the host, logged in there; there is no Reformer role: the rewrite is an optional later step run by the human (`REFORM.md`), with Provers doing rewrite tasks if it runs through the Runner; the Planner is trusted and runs its own Lean checks and worker agents directly.
+Settled since the first draft: sandboxes have no network, and the Runner carries out the search calls; agent tools run inside their sandboxes (bubblewrap, no containers), logged in through the campaign's own login folder; there is no Reformer role: the rewrite is an optional later step run by the human (`REFORM.md`), with Provers doing rewrite tasks if it runs through the Runner; the Planner is trusted and runs its own Lean checks and worker agents directly.

@@ -15,7 +15,7 @@ Agreed 2026-10-27. This file describes the design as decided. The full history, 
 |---|---|---|
 | **You (the human)** | | Confirm the campaign configuration. Approve each top-level statement. Fix infrastructure problems the Runner cannot solve, alone or with the Planner's help. Pause, change and resume the campaign whenever you want. Decide escalated top-level statements. Decide whether, and by whom, the project is rewritten after the campaign. |
 | **Planner** | One long-lived agent session, on any machine that can reach the Linux host, with full access to that host | Sets up the campaign. Writes the definitions and task statements, maintains the dependency graph, sizes tasks, and handles Fixer outcomes and escalations. Keeps the lessons file. Trusted by you: works directly on the host, runs its own Lean checks and may start worker agents, for example to gauge how hard a task is, without going through the Runner. May assist you at any time, including with infrastructure, but never changes the Runner's program. |
-| **Runner** | A deterministic program, no model | Schedules tasks, runs containers and checks, writes receipts, keeps the lemma index and the inbox, handles routine infrastructure faults, re-checks after changes, writes summaries. |
+| **Runner** | A deterministic program, no model | Schedules tasks, runs sandboxes and checks, writes receipts, keeps the lemma index and the inbox, handles routine infrastructure faults, re-checks after changes, writes summaries. |
 | **Prover** | Either a model driven by the Runner through a model API, or an agent tool (Claude Code or Codex) started by the Runner, as agreed in the configuration | Makes one attempt per task. |
 | **Fixer** | Either an agent tool (Claude Code or Codex) started by the Runner, or a model driven by the Runner through a model API, as agreed in the configuration (called the Repairer in Baker) | Called after one failed Prover attempt; finishes the proof, splits the task, or escalates. |
 
@@ -44,14 +44,14 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 
 ## 5. The life of a task
 
-1. **Prover attempt.** Once the task can be attempted, the Runner starts a Prover in its own container.
+1. **Prover attempt.** Once the task can be attempted, the Runner starts a Prover in its own sandbox.
    - The Prover's packet contains the statements to prove, the Planner's short list of relevant lemmas (names and statements, no proofs) and one line for each file the task depends on. It is also saved as a file, so an agent-tool Prover can re-read it.
    - Everything else the Prover finds on demand: the full table of contents (a file in its workspace), search over the project's lemma index, `exact?`, Loogle, LeanSearch, reading files. It tries `exact?` before writing a helper.
    - Only the task file counts. If the Prover changes other files in its workspace, the check tells it that those changes were ignored.
    - The Prover's rules are sent with every request, so they can't be forgotten. An agent-tool Prover gets the same packet, tools and rules, through its prompt, its workspace and a rules file.
-2. **Check.** When the Prover asks for its check, its container is stopped completely, Lean server included. The check runs in a separate container, on the project's accepted sources plus the submitted file.
+2. **Check.** When the Prover asks for its check, its sandbox is stopped completely, Lean server included. The check runs in a separate sandbox, on the project's accepted sources plus the submitted file.
    - **Pass:** the task is proved and a receipt is committed.
-   - **Fail:** a fresh container on the same workspace lets the Prover carry on, with the check's diagnostics and its remaining time. The check runs in the attempt's own slot, so it never waits; its time counts against the time limit. There is no limit on the number of checks.
+   - **Fail:** a fresh sandbox on the same workspace lets the Prover carry on, with the check's diagnostics and its remaining time. The check runs in the attempt's own slot, so it never waits; its time counts against the time limit. There is no limit on the number of checks.
 3. **What the check requires:**
    - every theorem's statement is exactly the task's current statement;
    - every declaration in the file uses only the axioms `propext`, `Classical.choice` and `Quot.sound`, which also rules out `sorry` and `native_decide`;
@@ -99,16 +99,21 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 ## 7. Trust and records
 
 - **The acceptance check** is Baker's, tightened: exact statements; only the allowed axioms, in every declaration of the file, which also rules out `sorry` and `native_decide`; and the rules of section 6. It runs on the current campaign commit.
-- **`verify`** re-checks a finished project independently. It works from a clean copy of a commit, in the pinned environment, offline, and without any agents. It rebuilds everything, re-checks every top-level theorem's exact statement and axioms, confirms that the files your approval covers are unchanged, and lists the assumptions each top-level theorem uses.
+- **`verify`** re-checks a finished project independently, from a clean copy of a commit and without any agents. It uses Lean's own judge, `lake comparator`:
+  - in the judge's own sandbox, without network, the project is rebuilt, and each top-level theorem is replayed through Lean's kernel and several independent checkers;
+  - none of the project's compiled files is loaded into the judge, so the project's code cannot influence the verdict;
+  - it confirms that each top-level theorem proves its approved statement with only the allowed axioms.
+
+  `verify` also confirms that the files your approval covers are unchanged, and lists the assumptions each top-level theorem uses.
 - **Receipts** record:
-  - the commit the check ran on, Git's own identifier for the accepted file, the container image and the Runner version;
-  - every attempt: role, agent tool and model, the commit it started from (which fixes the prompt versions), time used and outcome. A file with no attempts was written by the Planner;
+  - the commit the check ran on, Git's own identifier for the accepted file, and the Runner version;
+  - every attempt: role, agent tool and its version, model, the commit it started from (which fixes the prompt versions), time used and outcome. A file with no attempts was written by the Planner;
   - the file's imports, axioms and raised limits.
 
   Git keeps everything tamper-evident, so no separate checksums are needed.
 - **Top-level statements:**
   - you approve each one from its target sheet, and your approval is recorded as a Git tag;
-  - your approval covers the statement's meaning: the statement and every definition it uses, assumptions included. A change to any of them waits for your new approval. Provers still fill in the proofs;
+  - your approval covers the statement's meaning: the statement and every definition it uses, assumptions included, plus the project's build configuration and pinned versions. A change to any of them waits for your new approval. Provers still fill in the proofs;
   - the tag lives on the host. Accepted risk: a Planner with full host access could move it.
 - **Trusting the Planner does not change what counts as proved:** only the Runner's check accepts a proof, whoever wrote it.
 - **What the guarantee covers:** Lean guarantees that the statements are proved, not that they say what you intended. That is what the target sheets and your approval are for.
@@ -121,25 +126,25 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 ## 8. Environment and resources
 
 - **Host:** always Linux.
-- **Containers:** every Prover attempt, every check and every Fixer's Lean work runs in its own short-lived container (Docker or Podman), all from one image with the pinned Lean, the Mathlib build and the Lean server tools.
-  - Only the attempt's own workspace is writable.
-  - Mathlib is shared read-only between containers.
-  - Compiled files of proved tasks come read-only from one shared cache kept by the Runner, which grows as tasks are accepted. Each container adds a private layer for its own outputs.
-- **Network:** containers have no network access, with one exception below. The Runner carries out the Prover's Loogle and LeanSearch calls itself, outside the container; this costs no extra tokens.
+- **Sandboxes:** every Prover attempt, every check and every Fixer runs in its own short-lived sandbox, made with bubblewrap, the standard Linux sandboxing tool that Lean's own judge also uses. No container engine or image is needed.
+  - Only the attempt's own workspace is writable. The host's system folders are visible read-only; home folders and other campaigns are hidden.
+  - Lean and Mathlib, installed once per campaign at the pinned versions, are shared read-only between sandboxes.
+  - Compiled files of proved tasks come read-only from one shared cache kept by the Runner, which grows as tasks are accepted. Each sandbox adds a private layer for its own outputs.
+- **Network:** sandboxes have no network access, with one exception below. The Runner carries out the Prover's Loogle and LeanSearch calls itself, outside the sandbox; this costs no extra tokens.
   - **Loogle** runs locally, as one process for the whole campaign, against the pinned Mathlib. The public service indexes the latest Mathlib, whose renamed lemmas would not exist in the campaign's version.
   - **LeanSearch** stays remote; the Runner drops results whose names are not in the pinned Mathlib.
-- **Agent tools and logins:** a Prover or Fixer that is an agent tool (Claude Code or Codex) runs entirely inside its attempt container, so the boundary is the container, not the tool's own sandbox.
+- **Agent tools and logins:** a Prover or Fixer that is an agent tool (Claude Code or Codex) runs entirely inside its attempt sandbox, so the boundary is the protocol's sandbox, not the tool's own one.
   - Only its workspace is writable; nothing of the host is visible except read-only Lean, Mathlib and the shared build cache.
-  - Its network goes only to its provider (Anthropic or OpenAI), through a filtering proxy on the host. Its own web tools are turned off; searches go through the Runner.
-  - Your subscription login is shared into the container, as one credential folder used by all, so a refreshed login stays valid everywhere. The agent could read its own token, but can reach only its provider.
+  - Its network goes only to its provider (Anthropic or OpenAI), through a filtering proxy on the host. Its own web tools are turned off, including the web search that runs at the provider's end, which the proxy couldn't block; searches go through the Runner.
+  - Your subscription login is shared into the sandbox, as one credential folder used by all, so a refreshed login stays valid everywhere. The agent could read its own token, but can reach only its provider.
   - That folder is the campaign's own, created by `runner login`, and holds only the login. Your personal Claude Code or Codex setup (instructions, memory, settings, hooks, plugins) never reaches an agent; the only instructions an agent sees are the role's prompt, installed as the instruction file the tool re-reads by itself.
-  - The memory cap covers the agent, and its Lean work runs in the same container.
+  - The memory cap covers the agent, and its Lean work runs in the same sandbox.
   - Whatever an agent does, only the Runner's check makes a proof count.
 - **Lean servers:** one per attempt, never shared.
 - **Resources.** The numbers are set from a measurement at setup.
   - At most N attempts run at once.
-  - Each container has a memory cap, with swap off.
-  - An attempt and its check never run at the same time, so a slot holds one container at a time.
+  - Each sandbox has a memory cap, with swap off, set through systemd.
+  - An attempt and its check never run at the same time, so a slot holds one sandbox at a time.
   - Running out of memory is reported to the Prover like any other tool error, and never stops the campaign.
   - With subscription logins, the plan's usage limits also cap how many attempts can usefully run at once. Hitting a limit interrupts the running attempts (their clocks stop, and it doesn't count as a failure) and stops new ones until it resets; nothing is lost. The Runner tries one attempt again at the reported reset time, or every 30 minutes, and the rest follow.
   - The Planner's own Lean checks and worker agents run outside this limit, so N and the memory cap should leave room for them.
@@ -156,7 +161,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - how often you want a summary.
 
   You confirm it or change items. Nothing that costs money is chosen silently. You can change any of it later (section 12).
-- **`setup-check`** runs on a new host before any campaign. It compiles a tiny Lean file in the image, runs the acceptance check on a good and a bad file, confirms the memory cap works, makes one model request per role, and runs `verify`. For agent tools it also confirms that, inside a container, the agent cannot read or write outside its workspace or reach any host except its provider, and that several containers can share one subscription login.
+- **`setup-check`** runs on a new host before any campaign. It confirms that bubblewrap and the memory cap work, compiles a tiny Lean file in a sandbox, runs the acceptance check on a good file and on one bad file per rule, runs Lean's judge on a good and a bad example, makes one model request per role, and runs `verify`. For agent tools it also confirms that, inside a sandbox, the agent cannot read or write outside its workspace, reach any host except its provider, or use web search, and that several sandboxes can share one subscription login.
 
 ## 10. Monitoring and the Planner session
 
@@ -177,15 +182,15 @@ The same mechanism covers a deliberate pause, an infrastructure problem and a cr
 - **`pause`:** no new attempts start, and running attempts carry on to their end. The Planner can keep working, and you can make changes.
 - **`pause --now`:** running attempts are also stopped at once and marked *interrupted*, with the time they have used recorded.
 - **`resume`:** every change made in the meantime takes effect. Each interrupted attempt carries on with its remaining time, in the same workspace and conversation. An attempt is restarted from scratch only if its model never ran.
-- **A crash or reboot** counts as an unplanned `pause --now`. When the Runner starts again, it rebuilds its state from disk, clears leftover containers and marks the attempts that were running as interrupted. Then you run `resume`. It never resumes by itself, so a recurring fault can't make it restart over and over.
+- **A crash or reboot** counts as an unplanned `pause --now`. When the Runner starts again, it rebuilds its state from disk, clears leftover sandboxes and marks the attempts that were running as interrupted. Then you run `resume`. It never resumes by itself, so a recurring fault can't make it restart over and over.
 - **Little is lost.** The Runner writes each attempt's time used to disk every few seconds.
 - **An interrupted Fixer** continues through its tool's own session-resume feature where available. Otherwise it restarts on the same workspace with its remaining time, and the interrupted transcript is available to it.
 - **No interruption ever uses up a Prover or Fixer attempt.**
 
 **Infrastructure problems:**
 
-1. **The Runner handles routine faults itself.** It retries a temporary provider error after a pause, within the same attempt; restarts a crashed Lean server and tells the Prover; and retries a failed container start once.
-2. **Otherwise it judges how far the problem reaches.** A problem with one attempt pauses only that task. A problem with the whole host (disk, image, Docker, Git) or the model provider (login, quota, outage) stops new attempts, while unaffected running attempts continue.
+1. **The Runner handles routine faults itself.** It retries a temporary provider error after a pause, within the same attempt; restarts a crashed Lean server and tells the Prover; and retries a failed sandbox start once.
+2. **Otherwise it judges how far the problem reaches.** A problem with one attempt pauses only that task. A problem with the whole host (disk, sandboxing, Git) or the model provider (login, quota, outage) stops new attempts, while unaffected running attempts continue.
 3. **It keeps everything:** workspace, transcript, logs and time used. The task is marked *interrupted*, not failed.
 4. **It tells you** what failed, how far it reaches, where the evidence is, and what it already tried.
 5. **You fix the problem, alone or with the Planner's help, and run `resume`.**
@@ -197,12 +202,15 @@ The same mechanism covers a deliberate pause, an infrastructure problem and a cr
 
 Only the Runner's program is fixed. Everything else may change, and the Runner works out the consequences.
 
-- **Settings, prompts, the Planner's rules, and tools in the container image** take effect for attempts that start afterwards. Receipts record which versions were used.
+- **Settings, prompts, the Planner's rules, and the installed tool versions** take effect for attempts that start afterwards. Receipts record which versions were used.
 - **A task's statement, or a definition**, may change at any time. Top-level statements, and the definitions they use, also need your new approval. When one changes:
   1. any attempt running on an affected task is cancelled, without counting as a failure;
   2. the changed task, and every task depending on it, loses its proved status;
   3. the Runner re-checks the existing proofs against the new statements, automatically and without agents;
-  4. only the proofs that now fail go back to "can be attempted". The Prover then starts from the old proof and the new diagnostics.
+  4. only the proofs that now fail go back to "can be attempted". The Prover then starts from the old proof and the new diagnostics;
+  5. statements of tasks not yet proved are compiled again too; one that no longer compiles goes to the Planner.
+
+  Re-checks run before any new attempt starts.
 
   A small change therefore costs only the re-checks it actually needs.
 - **Removing a task that others use** is refused until those tasks are changed too.
@@ -231,8 +239,10 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
 ## 15. Implementation
 
 - **The Runner is written new**, reusing two proven parts of Baker's runner: the acceptance check, and the loop that drives the Prover (model calls, Lean tools, file editing).
-- **Adapters** for Claude Code and Codex let the Runner start a Prover or a Fixer as an agent tool inside its container: the command line and model, the shared login, resuming a session, reading its result. Their exact options are checked at setup.
-- **A filtering proxy** on the host lets agent-tool containers reach only their provider.
+- **Adapters** for Claude Code and Codex let the Runner start a Prover or a Fixer as an agent tool inside its sandbox: the command line and model, the shared login, resuming a session, reading its result. Their exact options are checked at setup.
+- **A filtering proxy** on the host (an existing small program, tinyproxy) lets agent-tool sandboxes reach only their provider.
+- **No container engine:** sandboxes use bubblewrap, and memory caps use systemd. Both are standard on current Linux distributions.
+- **`verify`** is a thin wrapper around `lake comparator`, part of Lean since v4.35.0; campaigns pin that version or later.
 - **The model-API loop** supports both chat completions (DeepSeek, OpenRouter, local servers) and Anthropic's own API.
 - **The Planner** needs no adapter: you start it yourself, in any agent tool, with its instruction file and a start prompt.
 - **Tests:** unit tests with tiny Lean files, including scripted end-to-end tests that replay recorded model responses: adopting a split, re-checking after a split, resuming after an interruption, adding tasks while running.
@@ -315,6 +325,7 @@ The prompts themselves can be improved during a campaign (section 12).
 - **Interrupted:** an attempt stopped by a pause, a crash or an infrastructure problem; it carries on later with its remaining time.
 - **Packet:** what a Prover receives at the start of an attempt.
 - **Slot, N:** one running attempt; N is the most that run at once.
+- **Sandbox:** the isolated space an attempt or check runs in, made with bubblewrap: only its workspace writable, no network (agent tools: their provider only), a memory cap.
 - **Inbox:** the list of items waiting for a decision, by the Planner or by you.
 - **Receipt:** the committed record of a passed check.
 - **Target sheet:** a plain-language explanation of a top-level statement, for your approval.
