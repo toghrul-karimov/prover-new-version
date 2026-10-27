@@ -81,22 +81,27 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 ## 6. Rules for Lean code
 
 - **Heartbeats** (Lean's per-declaration work limit):
-  - `set_option maxHeartbeats N in` is allowed only directly before a single declaration, with no fixed maximum.
+  - `set_option maxHeartbeats N in` is allowed only directly before a single declaration, with no fixed maximum. The same rule applies to `maxRecDepth` and `synthInstance.maxHeartbeats`.
   - At the end, every raise is removed in turn and the project rebuilt; only raises that are actually needed are kept.
   - **Guidance for the Planner:** one main idea per expected proof; separate named theorems rather than long conjunctions; basic lemmas for each definition; one number system per statement where the mathematics allows; large numerical facts in their own tasks.
   - **Guidance for the Prover:** if a declaration runs out of heartbeats, split it before raising the limit; prefer `simp only [...]` and `linarith only [...]`.
 - **Helper lemmas** are public by default, in the task's namespace.
+- **Not allowed in task files:** global instances, `@[simp]`, notation and attribute changes; use `local` or `scoped`. The Planner's definition files may have them.
+- **Not allowed in any file:**
+  - commands that run code while the file is compiled or imported, such as `#eval`, `run_cmd`, `initialize` and `elab`. The check has to load the file it judges, so such code would run inside the check and could fake its result. The kernel would still check the proofs, but not the verdict;
+  - settings outside a short allowed list. This rejects, for example, the setting that switches off the kernel's check.
+
+  You can exempt a file, for example one with a custom tactic, in the configuration. No Baker task file used any of these.
 - **Deprecated names** are tolerated during the campaign. They are fixed in the optional rewrite, if Lean and Mathlib are upgraded.
 
 ## 7. Trust and records
 
-- **The acceptance check** is the same as in Baker: exact statements plus the allowed axioms.
+- **The acceptance check** is Baker's, tightened: exact statements; only the allowed axioms, in every declaration of the file, which also rules out `sorry` and `native_decide`; and the rules of section 6. It runs on the current campaign commit.
 - **`verify`** re-checks a finished project independently. It works from a clean copy of a commit, in the pinned environment, offline, and without any agents. It rebuilds everything, re-checks every top-level theorem's exact statement and axioms, confirms that the files your approval covers are unchanged, and lists the assumptions each top-level theorem uses.
 - **Receipts** record:
-  - the commit, the Lean version, the container image and the Runner version;
-  - the prompt versions used;
-  - the result;
-  - who wrote each file: Prover, Fixer or Planner.
+  - the commit the check ran on, Git's own identifier for the accepted file, the container image and the Runner version;
+  - every attempt: role, agent tool and model, the commit it started from (which fixes the prompt versions), time used and outcome. A file with no attempts was written by the Planner;
+  - the file's imports, axioms and raised limits.
 
   Git keeps everything tamper-evident, so no separate checksums are needed.
 - **Top-level statements:**
@@ -247,11 +252,13 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
   - trust the files on disk, not memory;
   - read and add to the lessons file;
   - never change the Runner's program;
-  - it may run its own Lean checks and start worker agents to calibrate difficulty; their results are not accepted proofs.
+  - it may run its own Lean checks and start worker agents to calibrate difficulty; their results are not accepted proofs;
+  - keep numerical probes and examples (`#eval`) outside the campaign's files; ask you if a file needs an exemption, for example for a custom tactic.
 - **Prover:**
   - search before writing; try `exact?` before writing a helper;
   - helpers public in the task's namespace; no global changes;
-  - if a declaration runs out of heartbeats, split it first; prefer `simp only` and `linarith only`; raise heartbeats only for a single declaration;
+  - no commands that run code and no settings outside the allowed list; `sorry` and `native_decide` are rejected;
+  - if a declaration runs out of heartbeats, split it first; prefer `simp only` and `linarith only`; raise a limit only for a single declaration;
   - treat hypotheses in the statement, including assumptions, as given;
   - save useful partial work in the task file;
   - stop as soon as the check passes; if blocked, end by stating the obstacle precisely, because the Fixer starts from that message.

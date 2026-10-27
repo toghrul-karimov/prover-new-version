@@ -140,6 +140,9 @@ command = ["notify-send", "Lean campaign"]   # receives the message on standard 
 summary_every = 7200
 inbox_unread_alert = 3600          # alert the human if the inbox goes unread this long (D28)
 
+[check]
+allow_code = []                    # files exempt from the code-running ban; only the human adds (D72)
+
 [credentials]
 api_key_env = ""                   # name of the environment variable holding an API key
 agent_login_dirs = { "claude-code" = "~/.claude", "codex" = "~/.codex" }   # shared into agent containers (D64)
@@ -211,43 +214,56 @@ After each acceptance, the Runner adds a line to `index.jsonl` for each public d
 
 ## 7. The acceptance check
 
-Runs in its own container, offline, on a fresh copy: the campaign commit plus the submitted file. Steps:
+Runs in its own container, offline, on a fresh copy of the current campaign commit plus the submitted file (D76). Steps:
 
-1. **Static scan of the submitted file.** Rejects:
-   - `set_option maxHeartbeats` except as `set_option maxHeartbeats N in` directly before one declaration, and any `N = 0` (D23);
-   - global `instance`, `@[simp]`, `notation`, `infix`, `macro`, `syntax` and `attribute [...]` without `local` or `scoped` (D15);
-   - **OPEN 7.1:** commands that run code during compilation: `#eval`, `run_cmd`, `run_tac`, `run_elab`, `initialize`, `elab`, and the `unsafe`, `implemented_by` and `extern` keywords. Not decided yet; none of Baker's 727 task files used any.
-2. **Build** the task's module with `lake build`, within `check_time_limit`.
-3. **Audit,** in Lean, for each name in `statements`:
-   - it exists inside the task's namespace and is a theorem;
+1. **Static scan** of the submitted file, ignoring comments and strings. Each rejection names the line and the rule (D75). It rejects:
+   - **limits raised beyond one declaration** (D23, D75): `maxHeartbeats`, `maxRecDepth` and `synthInstance.maxHeartbeats` may be set only as `set_option … N in` directly before one declaration, and never to `0`;
+   - **other settings** (D72): any `set_option` outside the allowed list: the three limits, `autoImplicit`, `relaxedAutoImplicit`, `linter.*`, `pp.*` and `trace.*`. This rejects, for example, `debug.skipKernelTC`, which turns off the kernel's check;
+   - **code that runs while the file is compiled or imported** (D72): `#eval` (and variants such as `#eval!`), `run_cmd`, `run_tac`, `run_elab`, `by_elab`, `initialize`, `elab`, and the `unsafe`, `implemented_by` and `extern` keywords. Files listed in `check.allow_code` are exempt; only the human adds to that list;
+   - **in task and rewrite files only** (D15, D74): global `instance`, `@[simp]`, `notation`, `infix`, `macro`, `syntax` and `attribute [...]` without `local` or `scoped`.
+2. **Build** the module with `lake build`, within `check_time_limit`.
+3. **Audit,** in Lean:
+   - each name in `statements` exists inside the entry's namespace and is a theorem;
    - its type is definitionally equal to the stub's statement. The stub is compiled under a separate namespace for the comparison, as in Baker's audit;
-   - its axioms (collected transitively) are only `propext`, `Classical.choice` and `Quot.sound`. Since a task imports proved entries only, this also proves that it contains no `sorry`.
+   - **every declaration in the module** uses only the axioms `propext`, `Classical.choice` and `Quot.sound`, collected transitively (D73). `sorry` shows up as the axiom `sorryAx`, and `native_decide` as `Lean.ofReduceBool`, so this rule rejects both.
 4. **Module checks:**
    - every public declaration of the module starts with its namespace;
    - its imports satisfy section 3.2.
 
+**Definition files** (D74) go through the same steps, except that global instances, `@[simp]` and notation are allowed, and there are no statements to compare.
+
 Deprecation warnings are ignored (D21).
 
-**Receipt** (`receipts/<id>.json`), committed with the accepted file:
+**Committing results** (D76): the Runner commits accepted results one at a time. If a file the entry imports, directly or indirectly, changed between `checked_on` and the commit, the check runs again on the new commit.
+
+**Limits of the scan:** it is a text scan, a cheap first line of defence but not watertight. `lean-verify` must not rely on it (section 12.3).
+
+**Receipt** (`receipts/<id>.json`), committed with the accepted file (D77):
 
 ```json
 {
   "id": "heights.bounds",
-  "commit": "<campaign commit of the accepted file>",
+  "checked_on": "<campaign commit the check ran on>",
+  "file": "<Git blob id of the accepted file>",
   "runner_version": "<protocol repository tag>",
-  "toolchain": "leanprover/lean4:v4.34.1",
   "image": "<container image digest>",
-  "prompt_versions": {"prover": "<commit of prompts/prover.md>"},
-  "implementation": {"role": "prover", "kind": "agent", "agent": "claude-code", "model": "claude-sonnet-5-5"},
-  "author": "prover",
-  "attempts": ["<attempt-id>"],
+  "attempts": [
+    {"id": "<attempt-id>", "role": "prover", "implementation": "claude-code", "model": "<model id>",
+     "started_on": "<campaign commit>", "seconds": 1800, "outcome": "time-limit"},
+    {"id": "<attempt-id>", "role": "fixer", "implementation": "codex", "model": "<model id>",
+     "started_on": "<campaign commit>", "seconds": 412, "outcome": "passed"}
+  ],
   "imports": ["Baker.Heights.Basic", "Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset"],
   "axioms": ["propext", "Classical.choice", "Quot.sound"],
-  "heartbeat_raises": [],
-  "time_used": 412,
+  "limit_raises": [{"declaration": "height_bound", "option": "maxHeartbeats", "value": 400000}],
   "accepted_at": "2026-11-02T14:03:11Z"
 }
 ```
+
+- `implementation` is `claude-code`, `codex` or `model-api`.
+- `outcome` is `passed`, `time-limit`, `split` or `escalated`. An interrupted attempt continues under the same id.
+- `started_on` fixes the prompt versions the attempt used, since the prompts are in the repository. The Lean and Mathlib versions are in `checked_on`.
+- A file with no attempts was written by the Planner.
 
 ## 8. Statuses and state
 
@@ -372,6 +388,4 @@ A separate program, independent of the Runner and short enough to read. Given a 
 
 ## 14. Open items in this draft
 
-- **7.1** Reject commands that run code during compilation.
-
-Decided in review: 2.1 (D65), 3.1 (D66), 5.1 (D67).
+None. Decided in review: 2.1 (D65), 3.1 (D66), 5.1 (D67), 7.1–7.6 (D72–D77).
