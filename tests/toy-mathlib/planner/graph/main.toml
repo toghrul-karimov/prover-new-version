@@ -1,0 +1,11 @@
+id = "main"
+kind = "task"
+module = "ToyM.Main"
+namespace = "ToyM.Main"
+depends = ["defs.basic"]
+statements = ["f_pos"]
+lemmas = ["Real.exp_pos", "sq_nonneg"]
+notes = """Unfold `f`; `positivity` should finish."""
+top_level = true
+target = "targets/main.md"
+created_by = "planner"

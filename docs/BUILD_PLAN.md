@@ -35,6 +35,13 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
 10. **User guide**: setup, `setup-check`, configuration, approvals, pause and resume, end of campaign.
 11. **Pilot campaign** on a small real theorem: the only end-to-end test with real models. Nothing is shipped from it. It also measures how long `lake comparator` takes per task (D94).
 
+## Status (2026-10-27)
+
+- **Item 1, specification:** draft 0.2, nothing open except Q54.
+- **Item 2, `lean-verify`:** written (`verify/lean_verify.py`); its Git checks have unit tests. Its Lean part has not run yet (`docs/TEST_PLAN.md`, phase 2).
+- **Test kit:** `scripts/setup-host.sh`, `tests/sandbox/probe.sh`, `tests/make-campaign.sh`, `tests/toy/` (13 variants), `tests/toy-mathlib/`.
+- Everything else: not started.
+
 ## Order
 
 1. Specification.

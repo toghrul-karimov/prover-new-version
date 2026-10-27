@@ -130,7 +130,7 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 
 ## Open questions
 
-None. All design questions are decided; the open consequences are implementation notes.
+- **Q54. What stubs and definition files may import.** `lake comparator` trusts the challenge, and everything it imports must be trustworthy. So `lean-verify` requires that approved stubs, and the definition files they import, import only definition entries and dependency packages such as Mathlib, never a Prover's task file. This also makes clear what an approval covers (D69). Proposed: the same rule for every stub and definition file, in SPEC section 3.2 and the Planner's prompt; a task file may still add imports of proved entries (D14). Raised 2026-10-27 while writing `lean-verify`; `lean-verify` already enforces it for the files the approval covers.
 
 ## What the role prompts must say
 

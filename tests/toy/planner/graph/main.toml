@@ -1,0 +1,11 @@
+id = "main"
+kind = "task"
+module = "Toy.Main"
+namespace = "Toy.Main"
+depends = ["defs.basic", "defs.assumption", "lemmas.double"]
+statements = ["main"]
+lemmas = ["Toy.Lemmas.Double.double_eq"]
+notes = """Rewrite with the assumption at `2 * n`, then use `double_eq`."""
+top_level = true
+target = "targets/main.md"
+created_by = "planner"

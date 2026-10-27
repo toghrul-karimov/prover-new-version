@@ -1,0 +1,7 @@
+id = "defs.basic"
+kind = "definition"
+module = "Toy.Defs.Basic"
+namespace = "Toy.Defs.Basic"
+depends = []
+statements = []
+created_by = "planner"

@@ -1,0 +1,8 @@
+id = "defs.assumption"
+kind = "definition"
+module = "Toy.Defs.Assumption"
+namespace = "Toy.Defs.Assumption"
+depends = []
+statements = []
+assumption = true
+created_by = "planner"

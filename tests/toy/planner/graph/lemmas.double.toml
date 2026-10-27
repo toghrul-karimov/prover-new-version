@@ -1,0 +1,9 @@
+id = "lemmas.double"
+kind = "task"
+module = "Toy.Lemmas.Double"
+namespace = "Toy.Lemmas.Double"
+depends = ["defs.basic"]
+statements = ["double_eq"]
+lemmas = []
+notes = """Unfold `double`; `omega` finishes."""
+created_by = "planner"

@@ -1,0 +1,1 @@
+echo >> lake-manifest.json
