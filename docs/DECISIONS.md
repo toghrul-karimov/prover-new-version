@@ -65,6 +65,7 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 | D57 | **No Reformer; the rewrite is an optional later step run by the human.** After the campaign, the human may rewrite the project for quality (and optionally upgrade Lean and Mathlib), tasking the Planner or starting a new agent from their own machine. Its job and what it must take into account are described in `REFORM.md`. The campaign itself ends when every top-level statement is proved, with the Runner's heartbeat pass and `verify`; the verified commit is the certified result. Supersedes the Reformer parts of D1, D4, D8, D22, D35, D40, D43 and D56. | 2026-10-27 |
 | D58 | **The Planner is trusted and never has to go through the Runner.** It may run its own Lean checks directly and start worker agents, for example to calibrate task difficulty. Acceptance is unchanged: only the Runner's check makes a proof count, whoever wrote it. Refines D11 (calibration may also use trial runs) and D18 (the Planner's own work runs outside the attempt ceiling). | 2026-10-27 |
 | D59 | **If the optional rewrite runs through the Runner, Provers carry out the rewrite tasks**, with a rewrite prompt, checked like any task. The protocol therefore ships a Prover rewrite prompt. | 2026-10-27 |
+| D60 | **The Runner is written in Python**, like Baker's runner (whose acceptance check and Prover loop are reused). | 2026-10-27 |
 
 ## Consequences to resolve
 
@@ -90,7 +91,9 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 
 ## Open questions
 
-None. All design questions are decided; the open consequences are implementation notes.
+### Current batch
+- **Q47 Prover model API.** a) Both chat completions (as in Baker: DeepSeek, OpenRouter, local servers) and Anthropic's own API, through a small translation layer in the Prover loop *(recommended: Claude models become possible Provers; prompt caching cuts the cost of resending the conversation each request; the loop must stay append-only, as Baker's already is)*; b) chat completions only (Claude reachable only through its chat-completions-style endpoint, with fewer features).
+- **Q48 Adapters.** Proposal: Fixer adapters for Claude Code and Codex only. No Planner adapter, because the human starts the Planner and the Runner never launches it; the Planner needs only its instruction file in the place its tool reads (`CLAUDE.md` or `AGENTS.md`) and a start prompt. Refines D30.
 
 ## What the role prompts must say
 
