@@ -96,7 +96,11 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 
 ## Open questions
 
-None. All design questions are decided; the open consequences are implementation notes.
+### Current batch
+- **Q49 Sandboxing agent-tool Provers and Fixers** (raised 2026-10-27; checked against the tools' documentation). Claude Code's sandbox (bubblewrap plus a filtering network proxy) wraps only shell commands: its Read, Edit, Write and web tools follow permission rules instead; reads are open by default ("most of the machine, including `~/.ssh` and `~/.aws/credentials`"); it fails open unless `failIfUnavailable` is set; and its documentation recommends running the whole process in a container or VM for one boundary. Codex (bubblewrap plus seccomp) restricts writes and network for sandboxed shell commands, but does not block reads by default. In both, the agent program itself runs with the user's full access. Correctness is unaffected either way: only the Runner's check of one file, in a fresh container, makes a proof count. Options:
+  - a) *The whole agent tool inside its attempt container:* only its workspace writable; nothing of the host visible except read-only Lean, Mathlib and the build cache; network only to its provider through a filtering proxy on the host; the subscription login shared into the container (the agent could read its own token but reach only its provider); the memory cap covers the agent; its Lean work is in the same container. To verify at setup: several containers sharing one login (refresh-token rotation). Amends D55. *(recommended)*
+  - b) The agent tool on the host with its own sandbox, strictly configured (reads outside the workspace denied, no unsandboxed retries, fail-closed, web tools off) and tested at setup.
+  - c) Option b plus a separate Linux user for all agent processes, which keeps them out of the Runner's files and the main repository but not out of each other's workspaces.
 
 ## What the role prompts must say
 
