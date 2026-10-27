@@ -13,13 +13,14 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - Container contract: what is mounted where.
 2. **`verify`**: a small separate program, independent of the Runner and short enough to read.
 3. **Acceptance checker**: Baker's audit plus the new rules, with a positive and a negative test per rule.
-4. **Container image**: pinned Lean, the Mathlib build, the Lean server tools, and the Claude Code and Codex programs for agent-tool roles. Built per campaign from the pins; rebuilt when they change.
+4. **Container image**: pinned Lean, the Mathlib build, the Lean server tools, Loogle, the list of Mathlib names, and the Claude Code and Codex programs for agent-tool roles. Built per campaign from the pins; rebuilt when they change.
 5. **Runner:**
    - scheduling over the dependency graph, and the live depth;
    - containers and memory caps;
    - the model-API loop for Provers and Fixers (reused from Baker), supporting chat completions and Anthropic's API;
    - Fixer runs and split adoption with its four guards;
    - receipts in Git, and the lemma index with its search tool;
+   - the shared Loogle process and the LeanSearch calls with their name filter;
    - inbox, events and notifications;
    - pause, resume and crash recovery;
    - the automatic re-check after changes;

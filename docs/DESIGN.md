@@ -45,19 +45,20 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 ## 5. The life of a task
 
 1. **Prover attempt.** Once the task can be attempted, the Runner starts a Prover in its own container.
-   - The Prover's packet contains the statements to prove, the Planner's short list of relevant lemmas (names and statements, no proofs) and a one-line-per-file table of contents.
-   - Everything else the Prover finds on demand: search over the project's lemma index, `exact?`, Loogle, reading files. It tries `exact?` before writing a helper.
+   - The Prover's packet contains the statements to prove, the Planner's short list of relevant lemmas (names and statements, no proofs) and one line for each file the task depends on. It is also saved as a file, so an agent-tool Prover can re-read it.
+   - Everything else the Prover finds on demand: the full table of contents (a file in its workspace), search over the project's lemma index, `exact?`, Loogle, LeanSearch, reading files. It tries `exact?` before writing a helper.
+   - Only the task file counts. If the Prover changes other files in its workspace, the check tells it that those changes were ignored.
    - The Prover's rules are sent with every request, so they can't be forgotten. An agent-tool Prover gets the same packet, tools and rules, through its prompt, its workspace and a rules file.
 2. **Check.** When the Prover asks for its check, its container is stopped completely, Lean server included. The check runs in a separate container, on the project's accepted sources plus the submitted file.
    - **Pass:** the task is proved and a receipt is committed.
-   - **Fail:** a fresh container on the same workspace lets the Prover carry on, with the check's diagnostics and its remaining time. Time spent checking counts against the time limit.
+   - **Fail:** a fresh container on the same workspace lets the Prover carry on, with the check's diagnostics and its remaining time. The check runs in the attempt's own slot, so it never waits; its time counts against the time limit. There is no limit on the number of checks.
 3. **What the check requires:**
    - every theorem's statement is exactly the task's current statement;
-   - the only axioms used are `propext`, `Classical.choice` and `Quot.sound`;
-   - no `sorry` in the task's own proofs;
+   - every declaration in the file uses only the axioms `propext`, `Classical.choice` and `Quot.sound`, which also rules out `sorry` and `native_decide`;
    - imports of proved tasks only;
    - the namespace rule, and no global changes;
-   - heartbeat raises only for single declarations: no file-wide setting and no unlimited setting.
+   - no commands that run code and no settings outside the allowed list (section 6);
+   - limits raised only for single declarations: no file-wide setting and no unlimited setting.
 
    Warnings about deprecated names are ignored.
 4. **Fixer.** If the attempt ends without passing, the Fixer is called, once. It gets:
@@ -124,6 +125,8 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - Mathlib is shared read-only between containers.
   - Compiled files of proved tasks come read-only from one shared cache kept by the Runner, which grows as tasks are accepted. Each container adds a private layer for its own outputs.
 - **Network:** containers have no network access, with one exception below. The Runner carries out the Prover's Loogle and LeanSearch calls itself, outside the container; this costs no extra tokens.
+  - **Loogle** runs locally, as one process for the whole campaign, against the pinned Mathlib. The public service indexes the latest Mathlib, whose renamed lemmas would not exist in the campaign's version.
+  - **LeanSearch** stays remote; the Runner drops results whose names are not in the pinned Mathlib.
 - **Agent tools and logins:** a Prover or Fixer that is an agent tool (Claude Code or Codex) runs entirely inside its attempt container, so the boundary is the container, not the tool's own sandbox.
   - Only its workspace is writable; nothing of the host is visible except read-only Lean, Mathlib and the shared build cache.
   - Its network goes only to its provider (Anthropic or OpenAI), through a filtering proxy on the host. Its own web tools are turned off; searches go through the Runner.
@@ -136,7 +139,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - Each container has a memory cap, with swap off.
   - An attempt and its check never run at the same time, so a slot holds one container at a time.
   - Running out of memory is reported to the Prover like any other tool error, and never stops the campaign.
-  - With subscription logins, the plan's usage limits also cap how many attempts can usefully run at once. Hitting a limit stops new attempts until it resets; nothing is lost.
+  - With subscription logins, the plan's usage limits also cap how many attempts can usefully run at once. Hitting a limit interrupts the running attempts (their clocks stop, and it doesn't count as a failure) and stops new ones until it resets; nothing is lost.
   - The Planner's own Lean checks and worker agents run outside this limit, so N and the memory cap should leave room for them.
 - **Versions:** Lean and Mathlib normally stay the same throughout. They can be changed at a pause, at the cost of a full rebuild and re-check (section 12).
 
@@ -260,6 +263,7 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
   - no commands that run code and no settings outside the allowed list; `sorry` and `native_decide` are rejected;
   - if a declaration runs out of heartbeats, split it first; prefer `simp only` and `linarith only`; raise a limit only for a single declaration;
   - treat hypotheses in the statement, including assumptions, as given;
+  - only the task file counts; re-read the packet file after the context is compacted;
   - save useful partial work in the task file;
   - stop as soon as the check passes; if blocked, end by stating the obstacle precisely, because the Fixer starts from that message.
 - **Fixer:**

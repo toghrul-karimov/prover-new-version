@@ -180,9 +180,11 @@ Every attempt, whatever the implementation, receives:
 
 - the task's stub (the statements to prove) and the Planner's `notes`;
 - for each name in `lemmas`, its full statement (looked up in the index or Mathlib);
-- a table of contents: one line per proved module, its name and module docstring;
+- one line for each module in `depends`: its name and module docstring (D78);
 - the time limit and how much remains;
 - after a failed check or a re-check: the previous proof and the diagnostics.
+
+The packet is also saved as `/work/PACKET.md`, so an agent-tool Prover can re-read it after its context is compacted. The full table of contents, one line per accepted module, is the file `/work/TOC.md`, read only when needed (D78).
 
 ### 6.2 Tools
 
@@ -193,8 +195,9 @@ Every attempt, whatever the implementation, receives:
 | `edit_task_file(old, new)` | Replaces one unique piece of the task file |
 | Lean server tools | Goal and term-goal at a position, hover, completions, diagnostics, file outline, declaration location, local search, run a snippet, try several tactics, references: as in Baker's runner |
 | `search_index(query)` | Matching lines from the project's lemma index (section 6.4) |
-| `loogle(query)`, `leansearch(query)` | Mathlib search, carried out by the Runner outside the container (D54) |
-| `check()` | Asks for the acceptance check; ends the Prover's turn (D43) |
+| `loogle(query)` | Search Mathlib by type pattern: one Loogle process on the host, run by the Runner against the pinned Mathlib, offline (D54, D79) |
+| `leansearch(query)` | Search Mathlib by meaning: the remote LeanSearch service, called by the Runner; results whose names are not in the pinned Mathlib are dropped (D79) |
+| `check()` | Asks for the acceptance check; ends the Prover's turn (D43). Only the task file counts: if other files in the workspace changed, the result says so and that they were ignored (D80) |
 
 A model-API Prover gets these as tool definitions. An agent-tool Prover gets the Lean server tools from a Lean server in its container, and the Runner-provided tools (`search_index`, `loogle`, `leansearch`, `check`) through a small MCP server in the container that forwards to the Runner over a Unix socket mounted into the container. Its own file tools replace `read_file`, `write_task_file` and `edit_task_file`, limited by the container (D64).
 
@@ -202,15 +205,18 @@ A model-API Prover gets these as tool definitions. An agent-tool Prover gets the
 
 1. The Runner creates the attempt's workspace: the campaign commit plus the task file; the dependency packages and the shared build cache are mounted read-only.
 2. It starts the Prover: the model-API loop, or the agent tool through its adapter, inside the container.
-3. On `check()`: the attempt container is stopped completely; the check runs (section 7). Pass: done. Fail: a fresh container on the same workspace; the Prover resumes with the diagnostics and the remaining time (the model-API loop appends a message; an agent tool resumes its session through the adapter).
-4. At the time limit the Runner stops the attempt. The attempt then ends without a pass, and the Fixer is called (D34).
-5. The Prover's final message, if it is blocked, states the obstacle precisely (section 9).
+3. On `check()`: the attempt container is stopped completely; the check runs (section 7) in the attempt's own slot, so it never waits in a queue (D81). Pass: done. Fail: a fresh container on the same workspace; the Prover resumes with the diagnostics and the remaining time (the model-API loop appends a message; an agent tool resumes its session through the adapter). There is no limit on the number of checks; the time limit is the only limit.
+4. At the time limit the Runner stops the attempt. A check that has already started finishes first (D81). The attempt then ends without a pass, and the Fixer is called (D34).
+5. **Usage limits** (D81): if an agent tool reports that its subscription's usage limit is reached, the attempt becomes `interrupted`, not failed. Its clock stops, no new attempts start for that tool, and a `usage-limit` item goes to the human. Attempts continue when the limit resets.
+6. The Prover's final message, if it is blocked, states the obstacle precisely (section 9).
 
 Time counts from the attempt's start, including tools and checks; it is written to `attempt.json` every few seconds (D52).
 
 ### 6.4 The lemma index
 
-After each acceptance, the Runner adds a line to `index.jsonl` for each public declaration of the proved entry: full name, statement (pretty-printed, cut at a fixed length), module, first line of its docstring. `search_index` returns at most 20 matching lines, matching on words in the name, the statement and the docstring.
+After each acceptance, definition entries included, the Runner writes a line to `index.jsonl` for each public declaration of the entry: full name, statement (pretty-printed, cut at a fixed length), module, first line of its docstring. When an entry is accepted again, after a re-check, its old lines are replaced (D82).
+
+`search_index` returns at most 20 matching lines. It matches query words against the name (split into words at `_` and `.`), the statement and the docstring, and ranks lines by how many query words they match (D82).
 
 ## 7. The acceptance check
 
