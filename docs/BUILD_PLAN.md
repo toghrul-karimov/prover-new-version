@@ -13,7 +13,7 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - Container contract: what is mounted where.
 2. **`verify`**: a small separate program, independent of the Runner and short enough to read.
 3. **Acceptance checker**: Baker's audit plus the new rules, with a positive and a negative test per rule.
-4. **Container image**: pinned Lean, the Mathlib build, the Lean server tools. Built per campaign from the pins; rebuilt when they change.
+4. **Container image**: pinned Lean, the Mathlib build, the Lean server tools, and the Claude Code and Codex programs for agent-tool roles. Built per campaign from the pins; rebuilt when they change.
 5. **Runner:**
    - scheduling over the dependency graph, and the live depth;
    - containers and memory caps;
@@ -25,7 +25,7 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - the automatic re-check after changes;
    - `status` and `setup-check`;
    - the end-of-campaign heartbeat pass.
-6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools: command line and model, sandbox, routing Lean work into the container, session resume, rules-file placement, reading the result. The Planner needs no adapter.
+6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools inside their containers: command line and model, the shared subscription login, session resume, rules-file placement, reading the result. Plus the **filtering proxy** that lets those containers reach only their provider. The Planner needs no adapter.
 7. **Prompts and templates**, from the checklist in `DESIGN.md` section 16.
    - Prompts: the Planner's instruction file and start prompt; the Prover prompt, plus a Prover rewrite prompt for the optional rewrite after a campaign (brief in `REFORM.md`); the Fixer prompt.
    - Templates: target sheet, configuration proposal, lessons-file entry.

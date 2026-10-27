@@ -112,8 +112,13 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - Only the attempt's own workspace is writable.
   - Mathlib is shared read-only between containers.
   - Compiled files of proved tasks come read-only from one shared cache kept by the Runner, which grows as tasks are accepted. Each container adds a private layer for its own outputs.
-- **Network:** containers have no network access. The Runner carries out the Prover's Loogle and LeanSearch calls itself, outside the container; this costs no extra tokens.
-- **Agent tools and logins:** a Prover or Fixer that is an agent tool runs on the host, started by the Runner and logged in there with your subscription, so no credentials ever enter a container. The tool's own sandbox limits it to its workspace, its Lean work runs in its container, and its own web tools are turned off; searches go through the Runner. The host has internet access, for model calls and searches.
+- **Network:** containers have no network access, with one exception below. The Runner carries out the Prover's Loogle and LeanSearch calls itself, outside the container; this costs no extra tokens.
+- **Agent tools and logins:** a Prover or Fixer that is an agent tool (Claude Code or Codex) runs entirely inside its attempt container, so the boundary is the container, not the tool's own sandbox.
+  - Only its workspace is writable; nothing of the host is visible except read-only Lean, Mathlib and the shared build cache.
+  - Its network goes only to its provider (Anthropic or OpenAI), through a filtering proxy on the host. Its own web tools are turned off; searches go through the Runner.
+  - Your subscription login is shared into the container, as one credential folder used by all, so a refreshed login stays valid everywhere. The agent could read its own token, but can reach only its provider.
+  - The memory cap covers the agent, and its Lean work runs in the same container.
+  - Whatever an agent does, only the Runner's check makes a proof count.
 - **Lean servers:** one per attempt, never shared.
 - **Resources.** The numbers are set from a measurement at setup.
   - At most N attempts run at once.
@@ -135,7 +140,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - how often you want a summary.
 
   You confirm it or change items. Nothing that costs money is chosen silently. You can change any of it later (section 12).
-- **`setup-check`** runs on a new host before any campaign. It compiles a tiny Lean file in the image, runs the acceptance check on a good and a bad file, confirms the memory cap works, makes one model request per role, and runs `verify`.
+- **`setup-check`** runs on a new host before any campaign. It compiles a tiny Lean file in the image, runs the acceptance check on a good and a bad file, confirms the memory cap works, makes one model request per role, and runs `verify`. For agent tools it also confirms that, inside a container, the agent cannot read or write outside its workspace or reach any host except its provider, and that several containers can share one subscription login.
 
 ## 10. Monitoring and the Planner session
 
@@ -209,7 +214,8 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
 ## 15. Implementation
 
 - **The Runner is written new**, reusing two proven parts of Baker's runner: the acceptance check, and the loop that drives the Prover (model calls, Lean tools, file editing).
-- **Adapters** for Claude Code and Codex let the Runner start a Prover or a Fixer as an agent tool: the command line and model, the sandbox limiting it to its workspace, routing its Lean work into the container, resuming a session, reading its result. Their exact options are checked at setup.
+- **Adapters** for Claude Code and Codex let the Runner start a Prover or a Fixer as an agent tool inside its container: the command line and model, the shared login, resuming a session, reading its result. Their exact options are checked at setup.
+- **A filtering proxy** on the host lets agent-tool containers reach only their provider.
 - **The model-API loop** supports both chat completions (DeepSeek, OpenRouter, local servers) and Anthropic's own API.
 - **The Planner** needs no adapter: you start it yourself, in any agent tool, with its instruction file and a start prompt.
 - **Tests:** unit tests with tiny Lean files, including scripted end-to-end tests that replay recorded model responses: adopting a split, re-checking after a split, resuming after an interruption, adding tasks while running.
