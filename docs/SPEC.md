@@ -12,10 +12,14 @@ Draft 0.1, 2026-10-27. This file specifies the files, formats, commands and chec
 
 ## 2. Repositories and directories
 
-**OPEN 2.1.** Two kinds of repository:
+Two kinds of repository (D65):
 
 - **The protocol repository** (this one, `prover-new-version`) holds the Runner, `verify`, the adapters, the default prompts and templates, the lessons file carried between campaigns, and the documentation. A tagged commit of it is the *Runner version* recorded in receipts (D45).
-- **One campaign repository per campaign** holds the Lean project and everything the campaign produces. The Runner is its only writer (single writer); the Planner works on its own clone and submits through Runner commands (D26).
+- **Each campaign has its own local Git repository** with the Lean project and everything the campaign produces. The Runner is its only writer; the Planner works on its own clone and submits through Runner commands (D26).
+  - **A remote is optional,** agreed with the human, and may not be needed. If one is configured (`campaign.remote`), the Runner pushes `main` after each commit; a failed push is retried later and never stops the campaign.
+  - **Nothing that can be re-obtained by compiling is committed or pushed:** no `.lake/` build outputs, compiled `.olean` files, dependency checkouts, the build cache or the container image. These are listed in `.gitignore`, which the Runner writes at setup.
+  - **Committed:** Lean sources, graph entries, stubs, target sheets, receipts, the configuration (without credentials), prompts and lessons.
+  - **Kept locally, never in Git:** the runtime folder below (attempt workspaces, transcripts, logs, inbox, state, index and cache). Transcripts and attempt workspaces cannot be re-obtained, so they are preserved until the human removes them.
 
 Campaign repository layout:
 
@@ -72,7 +76,7 @@ parent = ""                        # for entries created by a Fixer split: the o
 - **Task entries** are proof work for Provers (D12).
 - **Rewrite entries** are used only by the optional rewrite after a campaign (D57, D59).
 
-**OPEN 3.1.** Definition files get graph entries like tasks, so the same scheduling, re-checking and receipts cover them.
+Definition files get graph entries like tasks, so the same scheduling, re-checking and receipts cover them (D66).
 
 ### 3.2 Rules the Runner enforces on the graph
 
@@ -91,6 +95,7 @@ Proposed by the Planner in one message and confirmed by the human (D25, D32, D63
 
 ```toml
 [campaign]
+remote = ""                        # optional Git remote, agreed with the human (D65)
 name = "baker-three-logs"
 library = "Baker"                  # Lean library holding the project's sources
 runtime_dir = "../baker-three-logs-runtime"
@@ -143,7 +148,7 @@ Any setting may change during the campaign and applies to attempts started after
 
 The Runner is one long-running program, started with `runner run`. Every other command writes a request into the runtime directory's `requests/` folder; the running Runner applies it and writes the result back, and the command prints it. So the Runner remains the only writer of the campaign repository and of its state.
 
-**OPEN 5.1.** Commands talk to the Runner through request files, not a network socket.
+Commands talk to the Runner through request files, not a network socket (D67). Throughout, the Runner's code should stay simple: no feature is worth complicated code when a plain file or a plain command will do.
 
 | Command | Who | Effect |
 |---|---|---|
@@ -363,7 +368,6 @@ A separate program, independent of the Runner and short enough to read. Given a 
 
 ## 14. Open items in this draft
 
-- **2.1** Two kinds of repository: the protocol repository, and one campaign repository per campaign.
-- **3.1** Definition files get graph entries, like tasks.
-- **5.1** Commands talk to the Runner through request files.
 - **7.1** Reject commands that run code during compilation.
+
+Decided in review: 2.1 (D65), 3.1 (D66), 5.1 (D67).

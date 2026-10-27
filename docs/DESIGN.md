@@ -30,6 +30,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 - **Imports:** a task may import any proved task, and never an unproved one. Lean imports whole files, so a task waits until *every* theorem in each file it imports is proved. The Planner groups theorems with this in mind.
 - **Top-level statements** each come with a target sheet: a plain-language explanation, using Baker's `TARGET.md` template.
 - **Receipts** (records of passed checks) are small files committed to the repository.
+- **Git:** each campaign has its own local Git repository. A remote is optional, agreed with you, and may not be needed. Nothing that can be re-obtained by compiling is ever committed or pushed; the bulky runtime material (workspaces, transcripts, logs) stays in a local folder outside Git.
 
 ## 4. The dependency graph and scheduling
 
