@@ -185,7 +185,8 @@ def write_inputs(work, entries, top):
     return theorems
 
 
-REPORT = """import LeanVerify.Challenge
+REPORT = """import Lean
+import LeanVerify.Challenge
 open Lean in
 #eval show CoreM Unit from do
   let env ← getEnv
@@ -283,6 +284,7 @@ def main(argv=None):
     parser.add_argument("--no-paranoid", action="store_true", help="only Lean's own kernel")
     parser.add_argument("--keep", action="store_true", help="keep the temporary checkout")
     args = parser.parse_args(argv)
+    sys.stdout.reconfigure(line_buffering=True)  # keep our lines in order with Lake's output
     try:
         verify(args.repo, args.commit, args.tag, not args.no_paranoid, args.keep)
         return 0
