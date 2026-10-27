@@ -67,12 +67,14 @@ statements = ["height_bound", "height_bound_of_ne_zero"]   # theorems the task m
 lemmas = ["Baker.Heights.Basic.height_nonneg", "Finset.prod_le_prod₀"]   # packet list (D16)
 notes = """Route: bound each place separately, then multiply."""   # the Planner's advice
 top_level = false                  # true for approved top-level statements (D20)
+assumption = false                 # definition entries only: true for an assumption (D68, D70)
 target = ""                        # "targets/<id>.md" when top_level
 created_by = "planner"             # "planner" | "fixer"
 parent = ""                        # for entries created by a Fixer split: the original task
 ```
 
 - **Definition entries** hold the Planner's definitions, instances and simple proofs about them (D41, D49). The Runner checks they compile with only the allowed axioms; they have no attempts.
+- **Assumptions** (D68, D70): for a result the human wants under an assumption, the assumption is a definition entry with `assumption = true`, holding a named `def … : Prop` whose docstring cites its source. Statements that rely on it take it as an explicit hypothesis, for example `theorem main (hA : A) : P`. It is never a Lean `axiom`, so the allowed axioms stay the three. Target sheets list the assumptions a top-level statement uses.
 - **Task entries** are proof work for Provers (D12).
 - **Rewrite entries** are used only by the optional rewrite after a campaign (D57, D59).
 
@@ -84,6 +86,7 @@ Definition files get graph entries like tasks, so the same scheduling, re-checki
 - Every module named in a file's `import` lines is either an entry listed in `depends`, a dependency package (Mathlib and its dependencies), or a proved entry (D14).
 - `statements` lists at least one theorem for a task; every listed theorem exists in the stub, inside `namespace`.
 - An entry that others depend on cannot be withdrawn until they change (D53).
+- **Approval covers meaning** (D20, D69). It covers each approved stub and every campaign file that stub imports, directly or indirectly. A `revise` that changes a covered file is held, not applied, and an `approval-needed` item goes to the human; `runner approve` applies it and moves the approval tag.
 
 ### 3.3 Stubs: current statements
 
@@ -162,7 +165,7 @@ Commands talk to the Runner through request files, not a network socket (D67). T
 | `runner revise <id> [<entry.toml>] [<file.lean>]` | Planner | Changes an entry; triggers the re-check of section 11 (D53) |
 | `runner withdraw <id>` | Planner | Removes an entry nobody depends on |
 | `runner resolve <item-id> [--note <text>]` | Planner, human | Closes an inbox item |
-| `runner approve <target-id>...` | human | Approves top-level statements; creates the approval tag (D20) |
+| `runner approve <target-id>...` | human | Approves top-level statements, and applies held changes to the files they cover; creates or moves the approval tag (D20, D69) |
 | `runner heartbeat-pass` | human | Runs the end-of-campaign heartbeat pass (D23) |
 | `lean-verify <repo> <commit>` | anyone | Independent check (section 12.3); a separate program |
 
@@ -344,7 +347,8 @@ A separate program, independent of the Runner and short enough to read. Given a 
 1. it makes a clean checkout;
 2. it builds everything in the pinned image, offline;
 3. for every top-level entry in the approval tag, it checks that the statement equals the approved stub and that the axioms are only the allowed three;
-4. it prints a report and exits non-zero on any failure.
+4. it checks, with Git, that every file the approval covers is unchanged since the approval tag (D69);
+5. it prints a report, listing under each top-level theorem the assumptions in its statement (D70), and exits non-zero on any failure.
 
 ### 12.4 `setup-check`
 

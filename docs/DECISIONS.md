@@ -25,7 +25,7 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 | D17 | **The formalisation always runs on Linux, with one native container per attempt** (Docker or Podman). Every Prover attempt, Fixer attempt and check runs in its own short-lived container from one image (pinned Lean, Mathlib cache, Lean MCP server); only that attempt's workspace is writable; Mathlib is shared read-only. Supersedes D2. The Planner and the human may work from any machine that can reach the Linux host (D33). | 2026-10-27 |
 | D18 | **Minimal resource ceiling.** A fixed number N of concurrent attempts; each attempt container has a memory cap with swap off; an attempt's acceptance checks run within its slot (one container at a time, D43); running out of memory is reported to the Prover like any tool error and never stops the campaign. | 2026-10-27 |
 | D19 | **Independent `verify` and attribution.** `verify` works from a clean checkout of a commit, in the pinned image, offline, with no agents: it rebuilds and re-checks every top theorem's exact statement and axioms. Receipts are small files committed to the repository, recording the commit, toolchain, image digest, Runner version (D45), result, and who wrote each file (Prover, Fixer, Planner, Reformer). Integrity comes from Git; no separate hashing. | 2026-10-27 |
-| D20 | **The human approves each top-level statement once**, from its target sheet. The approved version is a Git tag; the Runner refuses commits changing those statements without a new approval (Provers still fill in the proofs; review wording fix 2026-10-27). Internal nodes need no sign-off. | 2026-10-27 |
+| D20 | **The human approves each top-level statement once**, from its target sheet. The approved version is a Git tag; the Runner refuses commits changing those statements without a new approval (Provers still fill in the proofs; review wording fix 2026-10-27). Internal nodes need no sign-off. *Extended by D69: approval also covers the files the approved statements import.* | 2026-10-27 |
 | D21 | **Deprecation warnings are ignored at acceptance**, as in v1. Deprecated names are fixed by the Reformer's upgrade (D22). | 2026-10-27 |
 | D22 | **The Reformer moves the project to current Lean and Mathlib** (*only if the human chooses, D40*) as part of its rewrite, in steps through intermediate versions if the gap is large. Pins stay fixed during the campaign. `verify` and the contract-check file (D8, D19) check the upgraded result. *Amended by D53: Lean and Mathlib may also change at a pause during the campaign, with a full re-check.* | 2026-10-27 |
 | D23 | **`maxHeartbeats` may be raised only per declaration** (`set_option maxHeartbeats N in` directly before one theorem). File-wide settings and `0` are rejected at acceptance; no numeric cap. At the end, a mechanical pass removes each raise and rebuilds, dropping every raise the build passes without. | 2026-10-27 |
@@ -73,6 +73,10 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 | D65 | **Each campaign has its own local Git repository, possibly connected to a remote agreed with the human** (it may not be needed). Nothing that can be re-obtained by compiling is committed or pushed: build outputs, compiled files, dependency checkouts, caches, the container image. Committed: sources, graph entries, stubs, target sheets, receipts, configuration without credentials, prompts, lessons. The runtime folder (workspaces, transcripts, logs, inbox, state) stays local, outside Git. The protocol repository is separate. If a remote is configured, the Runner pushes after each commit; a failed push never stops the campaign. | 2026-10-27 |
 | D66 | **Every Lean file has a graph entry**, definition files included (kinds: definition, task, rewrite), so scheduling, re-checks and receipts work the same for all. Definition entries have no attempts; the Runner checks they compile with only the allowed axioms. | 2026-10-27 |
 | D67 | **Commands reach the Runner through request files** in the runtime folder; the Runner stays the only writer. More generally: keep the Runner's code simple; no feature justifies complicated code when a plain file or command will do. | 2026-10-27 |
+| D68 | **Conditional results: assumptions are hypotheses, never axioms.** A result the human wants under an assumption states it as an explicit hypothesis (`theorem main (hA : A) : P`). Each assumption is a named `def … : Prop` in a Planner definition file, with a docstring citing its source; tasks that need it take it as a hypothesis. The allowed axioms stay the three, so the result proves exactly "A implies P"; if A is proved later, one small task gives P. | 2026-10-27 |
+| D69 | **Approval covers what approved statements mean.** It covers each approved stub and every campaign file it imports, directly or indirectly, assumptions included. A change to a covered file is held until the human approves it; `lean-verify` checks with Git that covered files are unchanged since the approval tag. The Planner keeps definitions used by top-level statements in small files of their own, so unrelated edits need no new approval. Extends D20. | 2026-10-27 |
+| D70 | **Assumptions are visible.** A definition entry may carry `assumption = true`; target sheets list the assumptions a top-level statement uses; the `lean-verify` report lists, under each top-level theorem, the assumptions in its statement. | 2026-10-27 |
+| D71 | **Guidance on assumptions.** The Planner states each assumption as close to its source as possible, in the weakest form needed. Provers treat hypotheses, assumptions included, as given. The Planner does not try to disprove assumptions (human decision). | 2026-10-27 |
 
 ## Consequences to resolve
 
@@ -100,12 +104,7 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
 
 ## Open questions
 
-Raised 2026-10-27 by the question whether the design supports conditional formalisations (a result the human wants proved under an assumption).
-
-- **Q50. Assumptions are hypotheses, never axioms.** Each assumption is a named `def … : Prop` in a definition file, with a docstring citing its source; top-level statements take it as an explicit hypothesis; the allowed axioms stay the three. Proposed: yes.
-- **Q51. Approval covers what the statements mean.** Today a definition used by an approved statement can change without new approval, which silently changes the statement's meaning. Proposed: an approval also covers every campaign file the approved stubs import, directly or indirectly; changing one needs new approval; `verify` checks those files are unchanged since the approval tag (a Git comparison).
-- **Q52. Assumptions are visible.** Proposed: a definition entry may carry `assumption = true`; target sheets list assumptions; `verify` prints, for each top-level theorem, the assumptions it depends on.
-- **Q53. Guidance.** Proposed: the Planner states each assumption as close to its source as possible, in the weakest form needed, and before approval tries briefly to refute it, since a false assumption makes the result vacuous. The Prover treats hypotheses as given.
+None. All design questions are decided; the open consequences are implementation notes.
 
 ## What the role prompts must say
 
@@ -120,11 +119,14 @@ Collected from the decisions, so nothing is lost when the prompts are written.
   - group in one file only theorems that are needed together (C6); keep the depth of the dependency graph small; keep at least N tasks that can be attempted (D26);
   - files on disk are the truth: re-read them rather than relying on memory (D28);
   - read and add to the lessons file; apply lessons only through its own planning (D46);
-  - never change the Runner (D45).
+  - never change the Runner (D45);
+  - state each assumption as a named definition citing its source, as close to the source as possible and in the weakest form needed; never as an axiom (D68, D71);
+  - keep the definitions used by top-level statements in small files of their own, so unrelated edits need no new approval (D69).
 - **Prover:**
   - search on demand; try `exact?` before writing a helper (D16);
   - helpers public in the task's namespace; no global changes (D15);
   - if a declaration runs out of heartbeats, split it first; prefer `simp only` and `linarith only`; raise heartbeats only for a single declaration (D23, D24);
+  - treat hypotheses, assumptions included, as given (D71);
   - save useful partial work in the task file; once the check passes, stop; if blocked, end with a message stating the obstacle precisely (v1 practice, relied on by D44).
 - **Fixer:**
   - start from the inherited workspace, diagnostics, the Prover's final message and, if useful, its transcript (D44);
@@ -186,6 +188,10 @@ Collected from the decisions, so nothing is lost when the prompts are written.
 - **Q6 Judging difficulty.** Decided as D11 (judgement plus Runner feedback). Rejected: a written size guide; a probe attempt before freezing.
 - **Claims per task** (later-batch item). Decided as D12: several theorems per task allowed.
 - **Q5 Parallelisation mechanism.** Decided as D5 (option d). Rejected: a) stubs used as dependencies; b) conditional claims for same-stage siblings only; c) conditional claims as in v1.
+- **Q50 Assumptions.** Decided as D68 (hypotheses, never axioms).
+- **Q51 What approval covers.** Decided as D69 (the approved stubs and every campaign file they import).
+- **Q52 Visible assumptions.** Decided as D70.
+- **Q53 Guidance on assumptions.** Decided as D71, without the proposed attempt to disprove each assumption.
 
 ## Evidence
 

@@ -91,7 +91,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 ## 7. Trust and records
 
 - **The acceptance check** is the same as in Baker: exact statements plus the allowed axioms.
-- **`verify`** re-checks a finished project independently. It works from a clean copy of a commit, in the pinned environment, offline, and without any agents. It rebuilds everything and re-checks every top-level theorem's exact statement and axioms.
+- **`verify`** re-checks a finished project independently. It works from a clean copy of a commit, in the pinned environment, offline, and without any agents. It rebuilds everything, re-checks every top-level theorem's exact statement and axioms, confirms that the files your approval covers are unchanged, and lists the assumptions each top-level theorem uses.
 - **Receipts** record:
   - the commit, the Lean version, the container image and the Runner version;
   - the prompt versions used;
@@ -101,10 +101,15 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   Git keeps everything tamper-evident, so no separate checksums are needed.
 - **Top-level statements:**
   - you approve each one from its target sheet, and your approval is recorded as a Git tag;
-  - the Runner refuses any change to an approved statement without a new approval from you. Provers still fill in the proofs;
+  - your approval covers the statement's meaning: the statement and every definition it uses, assumptions included. A change to any of them waits for your new approval. Provers still fill in the proofs;
   - the tag lives on the host. Accepted risk: a Planner with full host access could move it.
 - **Trusting the Planner does not change what counts as proved:** only the Runner's check accepts a proof, whoever wrote it.
 - **What the guarantee covers:** Lean guarantees that the statements are proved, not that they say what you intended. That is what the target sheets and your approval are for.
+- **Conditional results:** if you want a result under an assumption, the assumption is part of the statement: `theorem main (hA : A) : P`.
+  - The Planner writes `A` as a named definition, citing its source, and marks it as an assumption. It is never a Lean axiom, so the allowed axioms stay the three, and the result proves exactly "A implies P".
+  - Tasks that need the assumption take it as a hypothesis; Provers treat it as given.
+  - Target sheets and the `verify` report list the assumptions each top-level theorem uses.
+  - If `A` is proved later, one small task gives the unconditional result.
 
 ## 8. Environment and resources
 
@@ -183,7 +188,7 @@ The same mechanism covers a deliberate pause, an infrastructure problem and a cr
 Only the Runner's program is fixed. Everything else may change, and the Runner works out the consequences.
 
 - **Settings, prompts, the Planner's rules, and tools in the container image** take effect for attempts that start afterwards. Receipts record which versions were used.
-- **A task's statement, or a definition**, may change at any time. Top-level statements also need your new approval. When one changes:
+- **A task's statement, or a definition**, may change at any time. Top-level statements, and the definitions they use, also need your new approval. When one changes:
   1. any attempt running on an affected task is cancelled, without counting as a failure;
   2. the changed task, and every task depending on it, loses its proved status;
   3. the Runner re-checks the existing proofs against the new statements, automatically and without agents;
@@ -234,7 +239,8 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
 - **Planner:**
   - propose the whole configuration in one message;
   - write a target sheet for each top-level statement;
-  - write the definitions, plus very simple, often-needed proofs about them that are too small to be tasks;
+  - write the definitions, plus very simple, often-needed proofs about them that are too small to be tasks; keep the definitions used by top-level statements in small files of their own, so unrelated edits don't need your new approval;
+  - state each assumption as a named definition, as close to its source as possible and in the weakest form needed; never as an axiom;
   - write no difficult tasks: split rather than prove central arguments itself; learn from the Runner's report on each task;
   - statements: one main idea per expected proof, separate named theorems rather than long conjunctions, one number system per statement where possible, large numerical facts in their own tasks;
   - put in one file only theorems that are needed together; keep the depth small; keep at least N tasks that can be attempted;
@@ -246,6 +252,7 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
   - search before writing; try `exact?` before writing a helper;
   - helpers public in the task's namespace; no global changes;
   - if a declaration runs out of heartbeats, split it first; prefer `simp only` and `linarith only`; raise heartbeats only for a single declaration;
+  - treat hypotheses in the statement, including assumptions, as given;
   - save useful partial work in the task file;
   - stop as soon as the check passes; if blocked, end by stating the obstacle precisely, because the Fixer starts from that message.
 - **Fixer:**
@@ -289,7 +296,8 @@ The prompts themselves can be improved during a campaign (section 12).
 - **Can be attempted:** a task whose dependencies are all proved, so a Prover can start on it.
 - **Depth:** the longest chain of tasks that each need the one before; it sets the minimum proving time.
 - **Stub:** a theorem with a `sorry` proof, written by the Planner as a task's current statement.
-- **Approved statement:** a top-level statement you have approved; changing it needs your approval again.
+- **Approved statement:** a top-level statement you have approved; changing it, or a definition it uses, needs your approval again.
+- **Assumption:** something you want a result to be conditional on; it appears as a hypothesis of the top-level theorem, never as an axiom.
 - **Interrupted:** an attempt stopped by a pause, a crash or an infrastructure problem; it carries on later with its remaining time.
 - **Packet:** what a Prover receives at the start of an attempt.
 - **Slot, N:** one running attempt; N is the most that run at once.
