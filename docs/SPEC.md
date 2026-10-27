@@ -47,6 +47,7 @@ requests/                   command requests to the running Runner (section 5)
 attempts/<attempt-id>/      workspace, transcript, logs, time used
 index.jsonl                 lemma index (section 6.4)
 cache/                      shared build cache of proved entries
+login/claude-code/, login/codex/   the campaign's own agent-tool logins, nothing else (D88)
 ```
 
 Receipts and lessons are committed; attempt workspaces, transcripts and logs stay in the runtime directory, preserved until the human removes them.
@@ -108,7 +109,7 @@ implementation = "agent"           # "agent" | "api" (D63)
 agent = "claude-code"              # "claude-code" | "codex"     (implementation = "agent")
 api = ""                           # "chat-completions" | "anthropic"   (implementation = "api")
 endpoint = ""                      # API base URL                (implementation = "api")
-model = "claude-sonnet-5-5"
+model = "<model name>"           # chosen in the configuration step
 reasoning = "medium"
 time_limit = 900
 
@@ -121,7 +122,7 @@ time_limit = 1800
 
 [roles.planner]                    # recorded for the record; the human starts the Planner
 agent = "claude-code"
-model = "claude-opus-5-5"
+model = "<model name>"
 
 [resources]
 attempts = 6                       # N (D18)
@@ -145,7 +146,7 @@ allow_code = []                    # files exempt from the code-running ban; onl
 
 [credentials]
 api_key_env = ""                   # name of the environment variable holding an API key
-agent_login_dirs = { "claude-code" = "~/.claude", "codex" = "~/.codex" }   # shared into agent containers (D64)
+# Agent-tool logins live in the runtime directory's login/ folder, created by `runner login` (D88).
 ```
 
 Any setting may change during the campaign and applies to attempts started afterwards (D53). Keys and tokens are never written to the repository.
@@ -164,6 +165,7 @@ Commands talk to the Runner through request files, not a network socket (D67). T
 | `runner inbox [--for planner\|human]` | anyone | Lists open inbox items |
 | `runner pause [--now]` | human | Stops starting attempts; with `--now`, also interrupts running ones (D52) |
 | `runner resume` | human | Applies changes made meanwhile and continues interrupted attempts (D52) |
+| `runner login claude-code\|codex` | human | Logs in to the agent tool once, into the campaign's own login folder (D88) |
 | `runner submit <entry.toml> <file.lean>` | Planner | Adds a graph entry with its stub or definition file (D26) |
 | `runner revise <id> [<entry.toml>] [<file.lean>]` | Planner | Changes an entry; triggers the re-check of section 11 (D53) |
 | `runner withdraw <id>` | Planner | Removes an entry nobody depends on |
@@ -284,13 +286,24 @@ Deprecation warnings are ignored (D21).
 | `needs-recheck` | its statement or a dependency changed (section 11) |
 | `with-planner` | escalated, or failed after the Fixer (D7, D32) |
 
+- **After a split** (D83): the new entries are added to the original task's `depends`, so it is `waiting`. When they are proved, the Runner checks the saved candidate first, without an agent. Pass: `proved`. Fail: `can-be-attempted`, starting from the candidate and the diagnostics, as after a re-check.
+- **After a usage limit** (D84): the Runner resumes one interrupted attempt at the reset time the agent tool reported, or every 30 minutes if it reported none. If that attempt runs, the others follow.
+- **Interrupted checks** are simply run again; the check is deterministic (D85).
+- **A task the Planner revises after it went `with-planner`** gets a fresh Prover attempt, and a fresh Fixer if that fails (D85).
+
 `state.json` holds every entry's status, its current attempt and its time used. It is rewritten atomically: write a new file, then rename it.
 
 **Crash recovery** (D52): on start, the Runner reads `state.json`, removes leftover containers, marks entries that were `proving`, `fixing` or `checking` as `interrupted`, starts paused, and posts an inbox item for the human.
 
 ## 9. Prompts
 
-The campaign's prompts live in `prompts/`, copied from the protocol repository's defaults at setup, and may change during a campaign (D50). Each attempt records the commit of the prompt it used.
+The campaign's prompts live in `prompts/`, copied from the protocol repository's defaults at setup, and may change during a campaign (D50). An attempt's `started_on` commit records which version it used (D77).
+
+- **Plain Markdown, no placeholders** (D86). Everything task-specific is in the packet.
+- **How a prompt reaches its role** (D86): for an agent tool, the adapter installs it as the instruction file the tool re-reads by itself (`CLAUDE.md` for Claude Code, `AGENTS.md` for Codex) at the workspace root, so the rules survive context compaction. For a model-API role, it is the system prompt of every request.
+- **Nothing else reaches the agents** (D88): agent tools run with the campaign's own login folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`), which holds only the login. The human's personal instructions, memory, settings, hooks and plugins are never mounted.
+
+Files:
 
 - `prompts/prover.md`: the Prover's rules (checklist in `DESIGN.md` §16).
 - `prompts/prover-rewrite.md`: for the optional rewrite (D59).
@@ -301,24 +314,25 @@ The campaign's prompts live in `prompts/`, copied from the protocol repository's
 
 ### 10.1 What the Fixer receives (D44)
 
-A copy of the Prover's workspace, the packet, the last check's diagnostics, the Prover's final message, and the path of the Prover's transcript. Its tools are the Prover's, plus the two in 10.2.
+A copy of the Prover's workspace, the packet, the last check's diagnostics, the Prover's final message, and the path of the Prover's transcript. Its tools are the Prover's, `check()` included, plus `report()` (10.2).
 
-### 10.2 What the Fixer returns
+### 10.2 How the Fixer ends (D87)
 
-The Fixer writes `fixer-report.json` in its workspace and ends:
+- **Finish:** a passing `check()` ends the Fixer, exactly as for the Prover.
+- **Split or escalate:** the Fixer calls `report()` with one of:
 
 ```json
-{"outcome": "finish", "summary": "..."}
 {"outcome": "split", "summary": "...",
- "new_entries": [{"entry": "<TOML text of graph/<id>.toml>", "stub": "<Lean text>"}],
- "candidate": "<path in the workspace of the original task's file using the new entries>"}
+ "new_entries": [{"entry": "<TOML text of graph/<id>.toml>", "stub": "<Lean text>"}]}
 {"outcome": "escalate", "summary": "...", "reason": "false" | "needs-change" | "other",
  "affected": ["<task ids>"], "proposed_statement": "<optional Lean text>"}
 ```
 
-- **Finish** goes to the check.
-- **Split:** the Runner applies the four guards of D13. If they pass, it adds the new entries (`created_by = "fixer"`, `parent` set), keeps the candidate as the original task's saved proof (checked once the new entries are proved), and records an inbox notice for the Planner. A malformed report, or a failed guard, sends the task to the Planner, with the reason.
-- **Escalate** sends it to the Planner; for a top-level statement, also to the human.
+  For a split, the candidate proof of the original task is the task file as it stands.
+- **Validation on the spot:** the Runner checks the report at once, the four guards of D13 included, and returns any problem to the Fixer as a tool error while it still has time. For guard 3 it runs `exact?` briefly on each new statement, with all accepted modules imported; if that finds a proof, the report is refused with the lemma's name, so the Fixer can use it (D89).
+- **A valid split:** the Runner adds the new entries (`created_by = "fixer"`, `parent` set), keeps the candidate as the original task's saved proof (section 8), and records an inbox notice for the Planner.
+- **A valid escalation** sends the task to the Planner; for a top-level statement, also to the human.
+- **Time limit** with neither a pass nor a valid report: `failed-after-fixer`, to the Planner.
 
 ### 10.3 Inbox items
 

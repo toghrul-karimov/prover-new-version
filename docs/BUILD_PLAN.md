@@ -26,7 +26,7 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - the automatic re-check after changes;
    - `status` and `setup-check`;
    - the end-of-campaign heartbeat pass.
-6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools inside their containers: command line and model, the shared subscription login, session resume, rules-file placement, reading the result. Plus the **filtering proxy** that lets those containers reach only their provider. The Planner needs no adapter.
+6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools inside their containers: command line and model, the campaign's own login folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) and `runner login`, session resume, installing the prompt as the tool's instruction file, usage-limit detection and reset time, reading the result. Plus the **filtering proxy** that lets those containers reach only their provider. The Planner needs no adapter.
 7. **Prompts and templates**, from the checklist in `DESIGN.md` section 16.
    - Prompts: the Planner's instruction file and start prompt; the Prover prompt, plus a Prover rewrite prompt for the optional rewrite after a campaign (brief in `REFORM.md`); the Fixer prompt.
    - Templates: target sheet, configuration proposal, lessons-file entry.

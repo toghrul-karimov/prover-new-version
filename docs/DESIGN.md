@@ -68,14 +68,15 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
 
    It starts a fresh conversation, with its own time limit. A Fixer attempt takes up one of the N slots.
 5. **What the Fixer can do:**
-   - **Finish:** its proof goes to the check.
+   - **Finish:** it uses the check, like the Prover; a pass ends it.
+   - It reports a split or an escalation through a Runner tool, which checks the report at once and returns any problem to the Fixer while it still has time.
    - **Split, one level only:** it adds new tasks (as stub statements) and saves a proof of the original task that uses them. You and the Planner don't approve splits; the Planner is notified. Before accepting a split, the Runner checks that:
      1. the original statements are unchanged, the new ones compile, and there are no cycles;
      2. the saved proof compiles against the new stubs and has no `sorry` of its own;
-     3. any new statement that matches an already-proved theorem is replaced by that theorem;
+     3. no new statement is already proved: the Runner tries `exact?` on each one, and if that finds a lemma, the Fixer is told to use it instead;
      4. the new tasks sit next to the original.
 
-     The saved proof is checked properly once the new tasks are proved. When writing new statements, the Fixer follows the Planner's rules for statements. A task created by a split that would need splitting again goes to the Planner.
+     The original task then waits for the new tasks. Once they are proved, the Runner checks the saved proof, without an agent; if that fails, the task can be attempted again from the saved proof. When writing new statements, the Fixer follows the Planner's rules for statements. A task created by a split that would need splitting again goes to the Planner.
    - **Escalate:** the statement looks false or needs to change. It goes to the Planner, and to you if it is a top-level statement. A fix that would change another task's statement, or a definition, is always an escalation, never a split.
    - **No success:** if the Fixer's proof fails the check, or the Fixer ends without a proof or a split, the task goes to the Planner.
 
@@ -131,6 +132,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - Only its workspace is writable; nothing of the host is visible except read-only Lean, Mathlib and the shared build cache.
   - Its network goes only to its provider (Anthropic or OpenAI), through a filtering proxy on the host. Its own web tools are turned off; searches go through the Runner.
   - Your subscription login is shared into the container, as one credential folder used by all, so a refreshed login stays valid everywhere. The agent could read its own token, but can reach only its provider.
+  - That folder is the campaign's own, created by `runner login`, and holds only the login. Your personal Claude Code or Codex setup (instructions, memory, settings, hooks, plugins) never reaches an agent; the only instructions an agent sees are the role's prompt, installed as the instruction file the tool re-reads by itself.
   - The memory cap covers the agent, and its Lean work runs in the same container.
   - Whatever an agent does, only the Runner's check makes a proof count.
 - **Lean servers:** one per attempt, never shared.
@@ -139,7 +141,7 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - Each container has a memory cap, with swap off.
   - An attempt and its check never run at the same time, so a slot holds one container at a time.
   - Running out of memory is reported to the Prover like any other tool error, and never stops the campaign.
-  - With subscription logins, the plan's usage limits also cap how many attempts can usefully run at once. Hitting a limit interrupts the running attempts (their clocks stop, and it doesn't count as a failure) and stops new ones until it resets; nothing is lost.
+  - With subscription logins, the plan's usage limits also cap how many attempts can usefully run at once. Hitting a limit interrupts the running attempts (their clocks stop, and it doesn't count as a failure) and stops new ones until it resets; nothing is lost. The Runner tries one attempt again at the reported reset time, or every 30 minutes, and the rest follow.
   - The Planner's own Lean checks and worker agents run outside this limit, so N and the memory cap should leave room for them.
 - **Versions:** Lean and Mathlib normally stay the same throughout. They can be changed at a pause, at the cost of a full rebuild and re-check (section 12).
 
@@ -221,6 +223,7 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
 | `setup-check` | You or the Planner, at setup | Check a new host |
 | `run`, `status` | You, the Planner | Start the Runner; show progress, the inbox, how many tasks can be attempted, and the depth |
 | `pause`, `pause --now`, `resume` | You | Pause the campaign, softly or at once; continue it, after changes or an infrastructure fix |
+| `login` | You, at setup | Log in to Claude Code or Codex once, for the campaign only |
 | `submit`, `revise`, `withdraw`, `resolve` | Planner | Add tasks; change or remove tasks; close inbox items |
 | `approve` | You | Approve top-level statements |
 | `verify` | Anyone | Independently re-check a commit |
@@ -268,7 +271,7 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
   - stop as soon as the check passes; if blocked, end by stating the obstacle precisely, because the Fixer starts from that message.
 - **Fixer:**
   - start from the inherited workspace, the diagnostics, the Prover's final message and, if useful, its transcript;
-  - finish, split one level, or escalate; never change another task's statement or a definition;
+  - finish (by passing the check), split one level, or escalate (through the report tool); never change another task's statement or a definition;
   - write new statements by the Planner's rules.
 - **Prover, on a rewrite task** (used if the optional rewrite runs through the Runner):
   - rewrite the file following the plan, keeping every statement's meaning;
