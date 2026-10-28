@@ -4,10 +4,10 @@ This repository holds version 2 of a protocol in which AI agents formalise mathe
 
 ## State on 2026-10-28
 
-- **Design: complete,** except two open questions from testing, Q55 (the proxy under AppArmor) and Q56 (comparing statements), in `docs/DECISIONS.md`.
+- **Design: complete,** except one open question from testing, Q56 (comparing statements), in `docs/DECISIONS.md`.
   - `docs/DESIGN.md`: the plain overview, written for the human.
   - `docs/SPEC.md`: draft 0.2; files, formats, commands and checks.
-  - `docs/DECISIONS.md`: decisions D1–D98 with their reasons, the evidence from the Baker campaign, and the glossary.
+  - `docs/DECISIONS.md`: decisions D1–D99 with their reasons, possible future features, the evidence from the Baker campaign, and the glossary.
   - `docs/BUILD_PLAN.md`: the work items, in order.
   - `docs/REFORM.md`: the brief for the optional rewrite after a campaign.
 - **Code:** only `verify/lean_verify.py`, the independent `lean-verify` (SPEC section 12.3), with unit tests for its Git checks. Its Lean part ran on the test host on 2026-10-28: all toy variants and the Mathlib campaign give the expected verdicts.
@@ -17,8 +17,8 @@ This repository holds version 2 of a protocol in which AI agents formalise mathe
   - `tests/make-campaign.sh` builds a campaign repository;
   - `tests/toy/` is a tiny campaign with 17 variants, some deliberately broken;
   - `tests/toy-mathlib/` measures timing with Mathlib.
-- **Tested** (`docs/TEST_RESULTS.md`): phases 0–2, except the agent tools (phase 1, step 4), which wait for the human's logins and Q55. The agent-sandbox part of `probe.sh` also waits for Q55.
-- **Next:** the human's answers to Q55 and Q56, phase 1 step 4, then the build items of `docs/BUILD_PLAN.md`.
+- **Tested** (`docs/TEST_RESULTS.md`): phases 0–2, except the agent tools (phase 1, step 4), which wait for the human's logins.
+- **Next:** the human's answer to Q56, phase 1 step 4, then the build items of `docs/BUILD_PLAN.md`.
 
 ## Read first
 
@@ -32,7 +32,7 @@ Before changing anything in the design, read why it is the way it is in `docs/DE
 
 - **The human decides design questions.**
   - If a test contradicts the design, or the design is unclear, stop and ask the human, with a recommendation.
-  - Record each answer as the next decision in `docs/DECISIONS.md`; the next number is D99. Then update `docs/SPEC.md`, citing the decision number, and `docs/DESIGN.md`, in plain words without decision numbers.
+  - Record each answer as the next decision in `docs/DECISIONS.md`; the next number is D100. Then update `docs/SPEC.md`, citing the decision number, and `docs/DESIGN.md`, in plain words without decision numbers.
   - While a question waits, list it under "Open questions" in `docs/DECISIONS.md`.
 - **Record test results** in `docs/TEST_RESULTS.md`, including failures that reveal design problems. Never quietly work around a design problem.
 - **No complicated code** (D67). Prefer plain files, plain commands, Python 3.11 or later with the standard library where possible, and short programs. `lean-verify` must stay short enough to read.

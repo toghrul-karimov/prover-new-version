@@ -11,13 +11,12 @@ ws=$root/work cache=$root/cache
 mkdir -p "$ws" "$cache"
 echo cached > "$cache/file"
 echo secret > "$HOME/.probe-secret"
-pids=()
-cleanup() { kill "${pids[@]}" 2>/dev/null; rm -rf "$root" "$HOME/.probe-secret"; }
+cleanup() { rm -rf "$root" "$HOME/.probe-secret"; }
 trap cleanup EXIT
 
 # The sandbox of SPEC.md 12.1: only the system folders /usr and /etc, read-only (home folders,
 # /run, /var and the rest are not there); the workspace writable; the build cache read-only with
-# a private layer; no network. The root is bwrap's own empty folder, not the host's, so that bwrap
+# a private layer; no network (agent sandboxes: see the end). The root is bwrap's own empty folder, not the host's, so that bwrap
 # can create /work and the other mount points (with `--ro-bind / /` it cannot). Needs merged /usr.
 sandbox() {
   local unit=$1; shift
@@ -67,30 +66,10 @@ systemctl --user stop "probe-$$-stop.scope" 2>/dev/null
 sleep 1
 if pgrep -u "$(id -u)" -f "^sleep 300$" >/dev/null; then echo "FAIL  stopping the scope ends its processes"; else echo "ok    stopping the scope ends its processes"; fi
 
-# Agent sandboxes (D96): tinyproxy on the host allows one host; a Unix socket carries the
-# connection into the sandbox, where socat exposes it on the sandbox's own loopback.
-cat > "$root/tinyproxy.conf" <<EOF
-Port 8888
-Listen 127.0.0.1
-Timeout 60
-ConnectPort 443
-FilterDefaultDeny Yes
-FilterType ere
-Filter "$root/allowed"
-EOF
-printf '^example\\.com$\n' > "$root/allowed"
-tinyproxy -d -c "$root/tinyproxy.conf" >"$root/tinyproxy.log" 2>&1 & pids+=($!)
-socat "UNIX-LISTEN:$root/proxy.sock,fork" TCP:127.0.0.1:8888 & pids+=($!)
-sleep 2
-if ! kill -0 "${pids[0]}" 2>/dev/null; then
-  echo "FAIL  the filtering proxy starts: $(tail -1 "$root/tinyproxy.log"); the agent sandbox checks did not run"
-  exit 1
-fi
-extra=(--bind "$root/proxy.sock" /proxy.sock)
-bridge='socat TCP-LISTEN:3128,bind=127.0.0.1,fork,reuseaddr UNIX-CONNECT:/proxy.sock & sleep 1;'
-expect ok   "an agent sandbox reaches the allowed host through the proxy" \
-  sh -c "$bridge curl -sS --max-time 15 -x http://127.0.0.1:3128 -o /dev/null https://example.com"
-expect fail "an agent sandbox cannot reach any other host" \
-  sh -c "$bridge curl -sS --max-time 15 -x http://127.0.0.1:3128 -o /dev/null https://www.wikipedia.org"
-expect fail "an agent sandbox cannot bypass the proxy" \
-  sh -c "curl -sS --max-time 10 -o /dev/null https://example.com"
+# Agent sandboxes (D99): the host's network, without restriction. /run stays hidden except the
+# DNS resolver's folder, where /etc/resolv.conf points (/run/systemd/resolve on Ubuntu).
+resolver=$(dirname "$(readlink -f /etc/resolv.conf)")
+extra=(--share-net)
+case $resolver in /run/*) extra+=(--ro-bind "$resolver" "$resolver") ;; esac
+expect ok   "an agent sandbox reaches a host by name"   curl -sS --max-time 15 -o /dev/null https://example.com
+expect fail "an agent sandbox still hides home folders" cat "$HOME/.probe-secret"

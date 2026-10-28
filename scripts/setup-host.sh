@@ -19,8 +19,7 @@ if [ "$(id -u)" != 0 ]; then echo "setup-host: run as root" >&2; exit 2; fi
 echo "== Packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -y -q git curl ca-certificates python3 bubblewrap socat tinyproxy jq dbus-user-session
-systemctl disable --now tinyproxy 2>/dev/null || true   # the Runner starts its own proxy per campaign
+apt-get install -y -q git curl ca-certificates python3 bubblewrap jq dbus-user-session
 if [ "$agents" = 1 ]; then apt-get install -y -q nodejs npm; fi
 
 echo "== User $user"

@@ -7,13 +7,13 @@ Record every result in `docs/TEST_RESULTS.md`: the date, the host, the versions,
 ## Phase 0: the host
 
 1. As root: `bash scripts/setup-host.sh`. Add `--agents` before testing agent tools. Every check should print `ok`.
-2. Record the versions: distribution, kernel, bubblewrap, systemd, Python, tinyproxy, socat.
+2. Record the versions: distribution, kernel, bubblewrap, systemd, Python.
 
 ## Phase 1: what the design assumes about the host
 
 Work as the user `lean`, logged in over SSH.
 
-1. **The sandbox** (SPEC 12.1–12.2, D95, D96): run `bash tests/sandbox/probe.sh`. Every line should print `ok`. A failing line is a design finding.
+1. **The sandbox** (SPEC 12.1–12.2, D95, D99): run `bash tests/sandbox/probe.sh`. Every line should print `ok`. A failing line is a design finding.
 2. **Memory per attempt** (D18). This sets N and the memory cap.
    - Build the Mathlib toy campaign (phase 2, step 3).
    - In it, compile the task file inside a memory-capped scope and read its peak:
@@ -26,9 +26,9 @@ Work as the user `lean`, logged in over SSH.
    - build Loogle (github.com/nomeata/loogle) against the pinned Mathlib: copy the campaign's `lean-toolchain` into its checkout first, as its README says;
    - record its memory use and start-up time;
    - run one query.
-4. **Agent tools in a sandbox** (D64, D86, D88, D96). This needs the human, for the subscription logins.
+4. **Agent tools in a sandbox** (D64, D86, D88, D99). This needs the human, for the subscription logins.
    - Log in once into a dedicated folder: `CLAUDE_CONFIG_DIR=<folder> claude`, and `CODEX_HOME=<folder> codex`.
-   - Run each tool non-interactively inside a sandbox, with the proxy bridge of `probe.sh` and its prompt installed as `CLAUDE.md` or `AGENTS.md`.
+   - Run each tool non-interactively inside a sandbox like `probe.sh`'s agent sandbox (the host's network), with its prompt installed as `CLAUDE.md` or `AGENTS.md`.
    - Confirm that it answers, cannot read outside its workspace, cannot use web search (ask it to search), and that two sandboxes can share one login at the same time.
    - Record the exact command-line flags that work; the adapters will need them.
 5. **Optional** (the premise of D72): confirm that an `initialize` in an imported module runs in the importing `lean` process.

@@ -136,8 +136,8 @@ Provers and Fixers never message anyone. Only one Planner session runs at a time
   - **LeanSearch** stays remote; the Runner drops results whose names are not in the pinned Mathlib.
 - **Agent tools and logins:** a Prover or Fixer that is an agent tool (Claude Code or Codex) runs entirely inside its attempt sandbox, so the boundary is the protocol's sandbox, not the tool's own one.
   - Only its workspace is writable; nothing of the host is visible except read-only Lean, Mathlib and the shared build cache.
-  - Its network goes only to its provider (Anthropic or OpenAI), through a filtering proxy on the host. Its own web tools are turned off, including the web search that runs at the provider's end, which the proxy couldn't block; searches go through the Runner.
-  - Your subscription login is shared into the sandbox, as one credential folder used by all, so a refreshed login stays valid everywhere. The agent could read its own token, but can reach only its provider.
+  - It has the host's network, without restriction. Its own web tools are turned off, including the web search that runs at the provider's end, so its searches go through the Runner, which uses the campaign's Mathlib. A filter letting it reach only its provider is a possible later feature (section 19).
+  - Your subscription login is shared into the sandbox, as one credential folder used by all, so a refreshed login stays valid everywhere. The agent could read its own token and, with an open network, send it anywhere.
   - That folder is the campaign's own, created by `runner login`, and holds only the login. Your personal Claude Code or Codex setup (instructions, memory, settings, hooks, plugins) never reaches an agent; the only instructions an agent sees are the role's prompt, installed as the instruction file the tool re-reads by itself.
   - The memory cap covers the agent, and its Lean work runs in the same sandbox.
   - Whatever an agent does, only the Runner's check makes a proof count.
@@ -241,7 +241,6 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
 
 - **The Runner is written new**, reusing two proven parts of Baker's runner: the acceptance check, and the loop that drives the Prover (model calls, Lean tools, file editing).
 - **Adapters** for Claude Code and Codex let the Runner start a Prover or a Fixer as an agent tool inside its sandbox: the command line and model, the shared login, resuming a session, reading its result. Their exact options are checked at setup.
-- **A filtering proxy** on the host (an existing small program, tinyproxy) lets agent-tool sandboxes reach only their provider.
 - **No container engine:** sandboxes use bubblewrap, and memory caps use systemd. Both are standard on current Linux distributions.
 - **`verify`** is a thin wrapper around `lake comparator`, part of Lean since v4.35.0; campaigns pin that version or later.
 - **The model-API loop** supports both chat completions (DeepSeek, OpenRouter, local servers) and Anthropic's own API.
@@ -278,6 +277,7 @@ Only the Runner's program is fixed. Everything else may change, and the Runner w
   - no commands that run code and no settings outside the allowed list; `sorry` and `native_decide` are rejected;
   - if a declaration runs out of heartbeats, split it first; prefer `simp only` and `linarith only`; raise a limit only for a single declaration;
   - treat hypotheses in the statement, including assumptions, as given;
+  - as an agent tool, with an open network: search Mathlib with the Runner's search tools, not public services, which index a newer Mathlib;
   - only the task file counts; re-read the packet file after the context is compacted;
   - save useful partial work in the task file;
   - stop as soon as the check passes; if blocked, end by stating the obstacle precisely, because the Fixer starts from that message.
@@ -315,6 +315,10 @@ The prompts themselves can be improved during a campaign (section 12).
 - Stopping the Runner to add new work.
 - Frozen specification files: changes now trigger targeted re-checks instead.
 
+## 19. Possible features for a later version
+
+- **A filter on agent sandboxes' network,** letting them reach only their provider. It was designed and tested: a small existing proxy program (tinyproxy), itself run in a sandbox, works on the test host. This version leaves agent sandboxes' network open instead.
+
 ## Glossary
 
 - **Task:** one unit of proof work: one file with one or more statements and their proofs. All tasks live in the dependency graph of all tasks.
@@ -327,7 +331,7 @@ The prompts themselves can be improved during a campaign (section 12).
 - **Interrupted:** an attempt stopped by a pause, a crash or an infrastructure problem; it carries on later with its remaining time.
 - **Packet:** what a Prover receives at the start of an attempt.
 - **Slot, N:** one running attempt; N is the most that run at once.
-- **Sandbox:** the isolated space an attempt or check runs in, made with bubblewrap: only its workspace writable, no network (agent tools: their provider only), a memory cap.
+- **Sandbox:** the isolated space an attempt or check runs in, made with bubblewrap: only its workspace writable, no network (agent tools: the host's network), a memory cap.
 - **Inbox:** the list of items waiting for a decision, by the Planner or by you.
 - **Receipt:** the committed record of a passed check.
 - **Target sheet:** a plain-language explanation of a top-level statement, for your approval.

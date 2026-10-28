@@ -134,9 +134,6 @@ check_time_limit = 600
 spending_cap = ""                  # optional; covers Planner worker agents too (C15)
 wall_time_cap = ""                 # optional
 
-[network]
-provider_hosts = ["<provider host>", "..."]   # what agent sandboxes may reach (D64, D96); exact hosts verified by setup-check
-
 [notify]
 command = ["notify-send", "Lean campaign"]   # receives the message on standard input
 summary_every = 7200
@@ -372,18 +369,18 @@ Every attempt and every check runs in its own sandbox: `bubblewrap` decides what
   - the pinned Lean toolchain and the dependency packages (Mathlib and its dependencies), read-only;
   - the shared build cache of proved entries, read-only, with a private writable overlay;
   - `/runner.sock`: the Runner tools socket (section 6.2);
-  - agent sandboxes only: the agent tool's program, the campaign's login folder for that tool (D88), and the proxy socket (12.2).
+  - agent sandboxes only: the agent tool's program, the campaign's login folder for that tool (D88), and the DNS resolver's folder (12.2).
 - **Processes:** the sandbox has its own process namespace. Stopping its scope ends every process in it, Lean server included (D43).
 - **Memory:** `MemoryMax` from `campaign.toml`, and `MemorySwapMax=0`. A slot holds one sandbox at a time.
 - **Setup instead of an image:** Lean through elan, as pinned by `lean-toolchain`; Mathlib as pinned by `lake-manifest.json`, fetched once; Loogle and the list of Mathlib names, made once; Claude Code and Codex installed once per campaign at fixed versions, into a read-only tools folder, with self-updating off. Receipts record the agent tool's version (D77); the Lean and Mathlib versions follow from the commit.
 - **Agent tools** run with their own permission prompts and sandboxing off: nobody answers prompts in a non-interactive run, and the protocol's sandbox is the boundary (D64).
 
-### 12.2 Network (D54, D96)
+### 12.2 Network (D54, D99)
 
-- Every sandbox has an empty network namespace: no network, only its own loopback.
-- **Model-API attempts and checks** need nothing more: the Runner makes the model calls and searches from the host.
-- **Agent sandboxes:** the filtering proxy runs on the host. It is tinyproxy, denying every host except `network.provider_hosts`. Its port is bridged to a Unix socket, which is mounted into the sandbox and exposed on the sandbox's loopback by `socat`; `HTTPS_PROXY` points there.
-- **Web search run at the provider's end** (Claude's and Codex's own web search) cannot be blocked by the proxy, so the adapter switches it off, and `setup-check` confirms it.
+- **Model-API attempts and checks** have an empty network namespace: no network, only their own loopback. The Runner makes the model calls and searches from the host.
+- **Agent sandboxes** share the host's network, without restriction (D99). `/run` stays hidden except the DNS resolver's folder, mounted read-only where `/etc/resolv.conf` points (`/run/systemd/resolve` on Ubuntu). Sharing the host's network also shares its loopback: services listening on the host's `127.0.0.1` are reachable.
+- **Web search run at the provider's end** (Claude's and Codex's own web search) is switched off by the adapter, so searches go through the Runner's tools, which use the pinned Mathlib; `setup-check` confirms it.
+- A filtering proxy for agent sandboxes is a possible later feature (`DECISIONS.md`, F1).
 
 ### 12.3 `lean-verify` (D19, D92)
 
@@ -407,7 +404,7 @@ The pilot measures how long `lake comparator` takes per task; it replays every M
 - Runs the acceptance check on a good file and on bad files: a wrong statement, a forbidden axiom, `sorry` in an unused helper, `native_decide`, a file-wide heartbeat setting, a setting outside the allowed list, a command that runs code, a global instance, a public declaration outside the namespace.
 - Runs `lake comparator` on a good and a bad example.
 - Makes one request per configured role.
-- For agent tools: confirms that the agent cannot read or write outside its workspace, reach a host outside `provider_hosts`, or use web search, and that two sandboxes can share one login.
+- For agent tools: confirms that the agent reaches its provider, cannot read or write outside its workspace or use web search, and that two sandboxes can share one login.
 - Runs `lean-verify` on the result.
 
 ## 13. Lessons file

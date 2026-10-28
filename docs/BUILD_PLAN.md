@@ -26,7 +26,7 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
    - the automatic re-check after changes;
    - `status` and `setup-check`;
    - the end-of-campaign heartbeat pass.
-6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools inside their sandboxes: command line and model, the campaign's own login folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) and `runner login`, session resume, installing the prompt as the tool's instruction file, usage-limit detection and reset time, reading the result. Plus the **filtering proxy** (tinyproxy, with its socket bridge) that lets those sandboxes reach only their provider. The Planner needs no adapter.
+6. **Adapters** for Claude Code and Codex, used by Provers and Fixers that run as agent tools inside their sandboxes: command line and model, the campaign's own login folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) and `runner login`, session resume, installing the prompt as the tool's instruction file, usage-limit detection and reset time, reading the result. The Planner needs no adapter.
 7. **Prompts and templates**, from the checklist in `DESIGN.md` section 16.
    - Prompts: the Planner's instruction file and start prompt; the Prover prompt, plus a Prover rewrite prompt for the optional rewrite after a campaign (brief in `REFORM.md`); the Fixer prompt.
    - Templates: target sheet, configuration proposal, lessons-file entry.
@@ -35,11 +35,11 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
 10. **User guide**: setup, `setup-check`, configuration, approvals, pause and resume, end of campaign.
 11. **Pilot campaign** on a small real theorem: the only end-to-end test with real models. Nothing is shipped from it. It also measures how long `lake comparator` takes per task (D94).
 
-## Status (2026-10-27)
+## Status (2026-10-28)
 
-- **Item 1, specification:** draft 0.2, nothing open.
-- **Item 2, `lean-verify`:** written (`verify/lean_verify.py`); its Git checks have unit tests. Its Lean part has not run yet (`docs/TEST_PLAN.md`, phase 2).
-- **Test kit:** `scripts/setup-host.sh`, `tests/sandbox/probe.sh`, `tests/make-campaign.sh`, `tests/toy/` (13 variants), `tests/toy-mathlib/`.
+- **Item 1, specification:** draft 0.2; one open question, Q56.
+- **Item 2, `lean-verify`:** written (`verify/lean_verify.py`); its Git checks have unit tests, and its Lean part has run on the test host (`docs/TEST_RESULTS.md`).
+- **Test kit:** `scripts/setup-host.sh`, `tests/sandbox/probe.sh`, `tests/make-campaign.sh`, `tests/toy/` (17 variants), `tests/toy-mathlib/`.
 - Everything else: not started.
 
 ## Order
@@ -52,6 +52,6 @@ Drafted 2026-10-27. The design is in `DESIGN.md`; decisions and open questions a
 
 ## Open design questions (see `DECISIONS.md`)
 
-None.
+Q56: comparing statements.
 
-Settled since the first draft: sandboxes have no network, and the Runner carries out the search calls; agent tools run inside their sandboxes (bubblewrap, no containers), logged in through the campaign's own login folder; there is no Reformer role: the rewrite is an optional later step run by the human (`REFORM.md`), with Provers doing rewrite tasks if it runs through the Runner; the Planner is trusted and runs its own Lean checks and worker agents directly.
+Settled since the first draft: sandboxes have no network, except agent sandboxes, which have the host's network (D99), and the Runner carries out the search calls; agent tools run inside their sandboxes (bubblewrap, no containers), logged in through the campaign's own login folder; there is no Reformer role: the rewrite is an optional later step run by the human (`REFORM.md`), with Provers doing rewrite tasks if it runs through the Runner; the Planner is trusted and runs its own Lean checks and worker agents directly.
