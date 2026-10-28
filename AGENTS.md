@@ -17,8 +17,9 @@ This repository holds version 2 of a protocol in which AI agents formalise mathe
   - `tests/make-campaign.sh` builds a campaign repository;
   - `tests/toy/` is a tiny campaign with 17 variants, some deliberately broken;
   - `tests/toy-mathlib/` measures timing with Mathlib.
-- **Tested** (`docs/TEST_RESULTS.md`): phases 0–2, except the agent tools (phase 1, step 4), which wait for the human's logins.
-- **Next:** the human's answer to Q56, phase 1 step 4, then the build items of `docs/BUILD_PLAN.md`.
+- **Tested** (`docs/TEST_RESULTS.md`): phases 0–2, except the agent tools (phase 1, step 4), which wait for the human's logins. Claude Code and Codex are installed on the test host, with empty login folders in `~/login`.
+- **Testing is paused** (2026-10-28, the human's request): do not use the test host until the human says to resume.
+- **Next:** the human's answer to Q56, phase 1 step 4 once testing resumes, then the build items of `docs/BUILD_PLAN.md`.
 
 ## Read first
 
