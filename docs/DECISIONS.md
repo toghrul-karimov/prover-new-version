@@ -136,10 +136,12 @@ Started 2026-10-27. Status: **Decided**, **Open**, **Closed** (no longer applies
   - (b) One system-wide tinyproxy, configured by root at setup. The allowed hosts become per host, not per campaign, and only root can change them.
   - (c) Replace tinyproxy with a short filtering proxy in Python in this repository. No AppArmor profile applies, but the filter becomes our own code.
   - Recommendation: (a). It keeps a tested proxy and the design; the rule grants read access to one folder only. Hosts without the profile (Debian 12) need nothing.
-- **Q56 Statement comparison: definitional equality or the same statement (section 7, D94).** `lake comparator` rejects a top-level theorem whose statement is definitionally equal to the approved one but written differently ("Challenge and solution theorem statement do not match"; the `restated-defeq` variant). The per-task check of section 7 accepts definitional equality, so a Prover could pass the check and then fail `lean-verify`. Options:
-  - (a) The per-task check requires the same elaborated statement as the stub, for every task, as the comparator does.
-  - (b) The same statement for top-level entries only; definitional equality stays for the others, which `lean-verify` never compares.
-  - Recommendation: (a). One rule, the same as the final judge. Provers have no reason to restate a stub. The comparison is of elaborated statements, so spacing, notation and the names of bound variables do not matter (a renamed hypothesis verifies).
+- **Q56 Statement comparison: definitional equality or the same statement (section 7, D94).** `lake comparator` rejects a top-level theorem whose statement is definitionally equal to the approved one but written differently ("Challenge and solution theorem statement do not match"; the `restated-defeq` and `unfolded-assumption` variants). The per-task check of section 7 accepts definitional equality, so a Prover could pass the check and then fail `lean-verify`.
+  - What the comparator compares (Lake's `Lake/Check/Compare.lean`): the elaborated statements, with Lean's `==` on terms. The names of bound variables and binder annotations (`{n}` or `(n)`) do not matter; the text does not matter if it elaborates to the same term (`@Eq Nat (double n) …` for `double n = …`). Unfolding a definition, computing (`2 * n + 0` to `2 * n`) or notation that names other constants (`a ≥ b` is `GE.ge a b`, not `LE.le b a`) does matter.
+  - Options:
+    - (a) The per-task check requires the same elaborated statement as the stub, by the comparator's rule, for every task.
+    - (b) The same statement for top-level entries only; definitional equality stays for the others, which `lean-verify` never compares.
+  - Recommendation: (a). One rule, the same as the final judge. Provers have no reason to restate a stub. Other tasks use a task's statement as written, and tactics such as `rw` and `simp` match it as written, so a restated lemma can break them. A top-level statement with an assumption unfolded would also no longer name the assumption.
 
 ## What the role prompts must say
 
