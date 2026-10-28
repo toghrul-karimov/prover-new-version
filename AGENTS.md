@@ -17,8 +17,8 @@ This repository holds version 2 of a protocol in which AI agents formalise mathe
   - `tests/make-campaign.sh` builds a campaign repository;
   - `tests/toy/` is a tiny campaign with 17 variants, some deliberately broken;
   - `tests/toy-mathlib/` measures timing with Mathlib.
-- **Tested** (`docs/TEST_RESULTS.md`): phases 0–2, except Loogle (phase 1, step 3) and the agent tools (phase 1, step 4), which wait for the human. The agent-sandbox part of `probe.sh` waits for Q55.
-- **Next:** the human's answers to Q55 and Q56, the two remaining phase 1 steps, then the build items of `docs/BUILD_PLAN.md`.
+- **Tested** (`docs/TEST_RESULTS.md`): phases 0–2, except the agent tools (phase 1, step 4), which wait for the human's logins and Q55. The agent-sandbox part of `probe.sh` also waits for Q55.
+- **Next:** the human's answers to Q55 and Q56, phase 1 step 4, then the build items of `docs/BUILD_PLAN.md`.
 
 ## Read first
 

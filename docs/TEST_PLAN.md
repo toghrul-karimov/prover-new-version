@@ -23,7 +23,7 @@ Work as the user `lean`, logged in over SSH.
      ```
    - Repeat with 2, 4 and 8 at once. Compiled Mathlib files are shared through memory mapping, so the total should grow much less than linearly. Record what it does.
 3. **Loogle, locally** (D79):
-   - build Loogle (github.com/nomeata/loogle) against the pinned Mathlib;
+   - build Loogle (github.com/nomeata/loogle) against the pinned Mathlib: copy the campaign's `lean-toolchain` into its checkout first, as its README says;
    - record its memory use and start-up time;
    - run one query.
 4. **Agent tools in a sandbox** (D64, D86, D88, D96). This needs the human, for the subscription logins.
